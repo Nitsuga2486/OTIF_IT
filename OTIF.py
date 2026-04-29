@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import re
-import os
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OTIF 2026 Ongoing", layout="wide")
@@ -14,7 +13,7 @@ def conectar_db():
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
-    # Estructura técnica de la tabla
+    # Usamos nombres técnicos en minúsculas para la DB (snake_case)
     c.execute('''CREATE TABLE IF NOT EXISTS proyectos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
@@ -30,6 +29,7 @@ def guardar_registro(d):
     query = '''INSERT INTO proyectos (tren_e2e, director, rte_nombre, mes_salida, fecha_plan, fecha_real, 
                on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, otif_x_proyecto, 
                opex_aprob, opex_ejec, comentarios) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'''
+    # Mapeamos las llaves del diccionario a la consulta
     c.execute(query, (
         d["Tren E2E"], d["Director"], d["RTE Nombre"], d["Mes de Salida"],
         str(d["Fecha Planeada"]), str(d["Fecha Real"]), d["On Time"], d["In Full"],
@@ -43,18 +43,29 @@ def cargar_datos():
     conn = conectar_db()
     try:
         df = pd.read_sql_query("SELECT * FROM proyectos", conn)
-        # Mapeo dinámico para evitar KeyErrors
+        # MAPEO ESTRICTO: Convierte nombres de DB a nombres de Tablero
         column_map = {
-            "id": "id", "tren_e2e": "Tren E2E", "director": "Director", "rte_nombre": "RTE Nombre",
-            "mes_salida": "Mes de Salida", "fecha_plan": "Fecha Planeada", "fecha_real": "Fecha Real",
-            "on_time": "On Time", "in_full": "In Full", "capex_aprob": "CAPEX Aprobado",
-            "capex_ejec": "Ejecutado CAPEX", "pct_budget": "% Budget", "on_budget": "On Budget",
-            "otif_x_proyecto": "OTIF X Proyecto", "opex_aprob": "OPEX Aprobado",
-            "opex_ejec": "Ejecutado OPEX", "comentarios": "Comentarios"
+            "id": "id", 
+            "tren_e2e": "Tren E2E", 
+            "director": "Director", 
+            "rte_nombre": "RTE Nombre",
+            "mes_salida": "Mes de Salida", 
+            "fecha_plan": "Fecha Planeada", 
+            "fecha_real": "Fecha Real",
+            "on_time": "On Time", 
+            "in_full": "In Full", 
+            "capex_aprob": "CAPEX Aprobado",
+            "capex_ejec": "Ejecutado CAPEX", 
+            "pct_budget": "% Budget", 
+            "on_budget": "On Budget",
+            "otif_x_proyecto": "OTIF X Proyecto", 
+            "opex_aprob": "OPEX Aprobado",
+            "opex_ejec": "Ejecutado OPEX", 
+            "comentarios": "Comentarios"
         }
         if not df.empty:
             df.rename(columns=column_map, inplace=True)
-    except Exception as e:
+    except Exception:
         df = pd.DataFrame()
     finally:
         conn.close()
@@ -67,7 +78,6 @@ def eliminar_registros(ids):
     conn.commit()
     conn.close()
 
-# Inicializar Base de Datos
 crear_tabla()
 
 # --- CONFIGURACIÓN DE NEGOCIO ---
@@ -126,13 +136,10 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     if st.button("💾 Guardar Proyecto"):
         ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
         t_aprob, t_ejec = ca + oa, ce + oe
-        
-        # Lógica de Negocio
         on_b = "SÍ" if t_ejec <= t_aprob else "NO"
         pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
         ot = "SÍ" if f_r <= f_p else "NO"
 
-        # Regla del Centavo y Vacíos
         if in_f == "Sin avance":
             otif_final = "Sin avance"
         elif ca == 0.01:
@@ -148,22 +155,23 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             "OTIF X Proyecto": otif_final, "OPEX Aprobado": oa, "Ejecutado OPEX": oe, "Comentarios": com
         }
         guardar_registro(datos)
-        st.success(f"Proyecto {nombre_p} registrado con éxito.")
+        st.success(f"Proyecto {nombre_p} registrado.")
         st.rerun()
 
-# --- TABLERO Y RESUMEN ---
+# --- TABLERO ---
 df_datos = cargar_datos()
 
 if not df_datos.empty:
-    # 📈 SECCIÓN RESUMEN
-    st.subheader("📈 Resumen de Cumplimiento por Director")
-    df_validos = df_datos[df_datos["OTIF X Proyecto"].isin(["SÍ", "NO"])].copy()
-    if not df_validos.empty:
-        df_validos["Puntos"] = df_validos["OTIF X Proyecto"].map({"SÍ": 1, "NO": 0})
-        resumen = df_validos.groupby("Director")["Puntos"].mean() * 100
-        resumen_df = resumen.reset_index()
-        resumen_df.columns = ["Director", "% OTIF Global"]
-        st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
+    # 📈 RESUMEN (Aquí ocurría el error)
+    if "OTIF X Proyecto" in df_datos.columns:
+        st.subheader("📈 Resumen de Cumplimiento por Director")
+        df_validos = df_datos[df_datos["OTIF X Proyecto"].isin(["SÍ", "NO"])].copy()
+        if not df_validos.empty:
+            df_validos["Puntos"] = df_validos["OTIF X Proyecto"].map({"SÍ": 1, "NO": 0})
+            resumen = df_validos.groupby("Director")["Puntos"].mean() * 100
+            resumen_df = resumen.reset_index()
+            resumen_df.columns = ["Director", "% OTIF Global"]
+            st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
     
     # 🗂️ MATRIZ PRINCIPAL
     st.subheader("Matriz Principal (Detalle por Proyecto)")
@@ -178,14 +186,11 @@ if not df_datos.empty:
             "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
             "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
             "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
-            "Fecha Planeada": st.column_config.DateColumn(format="DD/MM/YYYY"),
-            "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_2026"
+        use_container_width=True, hide_index=True, key="main_editor_v3"
     )
 
-    # Lógica de eliminación
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
     ids_a_eliminar = df_datos.iloc[filas_marcadas]["id"].tolist()
 
@@ -195,6 +200,6 @@ if not df_datos.empty:
             eliminar_registros(ids_a_eliminar)
             st.rerun()
     with col_acc2:
-        st.download_button("📥 Exportar Matriz (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix_Axo.csv")
+        st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
 else:
-    st.info("No hay proyectos registrados. Inicia la captura arriba.")
+    st.info("Inicia la captura.")
