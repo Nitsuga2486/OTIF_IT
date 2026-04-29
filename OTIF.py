@@ -114,7 +114,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     with c_tren:
         tren_t = st.selectbox("1. Selecciona Tren", options=["Seleccionar"] + list(CONFIG_TRENES.keys()), key="sel_tren")
     
-    # Lógica de opciones dinámicas
     opciones_dir = ["Seleccionar"]
     opciones_rte = ["Seleccionar"]
     
@@ -133,7 +132,9 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
         with c6: f_r = st.date_input("Fecha Real", format="DD/MM/YYYY")
-        with c7: in_f = st.selectbox("In Full", ["Sin avance", "SÍ", "NO"])
+        with c7: 
+            # Ajuste: Opción 'Seleccionar' por default y stopper
+            in_f = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
         with c8: com = st.text_input("Comentarios")
 
         st.markdown("### Finanzas")
@@ -146,11 +147,12 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         with f4: t_oe = st.text_input("Ejecutado OPX", value="0.00")
 
         if st.form_submit_button("💾 Guardar Proyecto"):
-            # --- VALIDACIÓN CRÍTICA ---
+            # --- VALIDACIÓN CRÍTICA ACTUALIZADA ---
             errores = []
             if tren_t == "Seleccionar": errores.append("Tren")
             if dir_s == "Seleccionar": errores.append("Director")
             if rte_s == "Seleccionar": errores.append("RTE")
+            if in_f == "Seleccionar": errores.append("In Full")
             if not nombre_p.strip(): errores.append("Nombre del Proyecto")
 
             if errores:
@@ -209,7 +211,7 @@ if not df_datos.empty:
                 "Ejecutado OPX": st.column_config.NumberColumn(format="$ %,.2f"),
             },
             disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-            use_container_width=True, hide_index=True, key="main_editor_v14"
+            use_container_width=True, hide_index=True, key="main_editor_v15"
         )
 
         filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
