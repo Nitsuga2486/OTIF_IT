@@ -86,7 +86,7 @@ st.title("📊 Seguimiento OTIF IT")
 st.markdown("---")
 
 with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
-    # Fila 1: Nombre y Clasificación
+    # Fila 1: Identificación
     c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
     with c1:
         nombre_proyecto = st.text_input("Nombre del Proyecto (Tren E2E)")
@@ -97,7 +97,7 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
     with c4:
         rte_sel = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_tipo]["rtes"])
 
-    # Fila 2: Tiempos y Calidad
+    # Fila 2: Fechas y OTIF
     c5, c6, c7, c8 = st.columns(4)
     with c5:
         f_plan = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
@@ -108,10 +108,28 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
     with c8:
         comentarios = st.text_input("Comentarios")
 
+    # Fila 3: Finanzas (CAPEX y OPEX)
+    f1, f2, f3, f4 = st.columns(4)
+    with f1:
+        capex_aprob = st.number_input("CAPEX Aprobado Finanzas", min_value=0.0, format="%.2f")
+    with f2:
+        capex_ejec = st.number_input("Ejecutado CAPEX", min_value=0.0, format="%.2f")
+    with f3:
+        opex_aprob = st.number_input("OPEX Aprobado Finanzas", min_value=0.0, format="%.2f")
+    with f4:
+        opex_ejec = st.number_input("Ejecutado OPEX", min_value=0.0, format="%.2f")
+
     if st.button("Registrar en Tablero"):
+        # Cálculos automáticos
         mes_txt = meses_espanol[f_real.month]
         on_time = "SÍ" if f_real <= f_plan else "NO"
         otif = "SÍ" if (on_time == "SÍ" and in_full == "SÍ") else "NO"
+        
+        # Cálculo de presupuesto global
+        total_aprob = capex_aprob + opex_aprob
+        total_ejec = capex_ejec + opex_ejec
+        pct_budget = (total_ejec / total_aprob * 100) if total_aprob > 0 else 0
+        on_budget = "SÍ" if total_ejec <= total_aprob else "NO"
         
         nuevo_registro = {
             "Tren E2E": nombre_proyecto,
@@ -122,13 +140,13 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
             "Fecha Real": f_real,
             "On Time": on_time,
             "In Full": in_full,
-            "CAPEX Aprobado por Finanzas": 0.0,
-            "Ejecutado CAPEX": 0.0,
-            "% Budget": "0%",
-            "On Budget": "SÍ",
+            "CAPEX Aprobado por Finanzas": capex_aprob,
+            "Ejecutado CAPEX": capex_ejec,
+            "% Budget": f"{pct_budget:.1f}%",
+            "On Budget": on_budget,
             "OTIF X Proyecto": otif,
-            "OPEX Aprobado por Finanzas": 0.0,
-            "Ejecutado OPEX": 0.0,
+            "OPEX Aprobado por Finanzas": opex_aprob,
+            "Ejecutado OPEX": opex_ejec,
             "Comentarios": comentarios
         }
         st.session_state.proyectos.append(nuevo_registro)
@@ -144,7 +162,9 @@ if st.session_state.proyectos:
         column_config={
             "Mes de Salida": st.column_config.TextColumn(disabled=True),
             "On Time": st.column_config.TextColumn(disabled=True),
+            "On Budget": st.column_config.TextColumn(disabled=True),
             "OTIF X Proyecto": st.column_config.TextColumn(disabled=True),
+            "% Budget": st.column_config.TextColumn(disabled=True),
             "Fecha Planeada": st.column_config.DateColumn(format="DD/MM/YYYY"),
             "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
             "CAPEX Aprobado por Finanzas": st.column_config.NumberColumn(format="$%.2f"),
