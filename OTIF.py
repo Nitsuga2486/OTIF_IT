@@ -5,7 +5,7 @@ from datetime import datetime
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OTIF IT - Seguimiento", layout="wide")
 
-# Mapeo de dependencias corregido
+# Mapeo de dependencias
 CONFIG_TRENES = {
     "Comercial": {
         "directores": ["Ortiz de Montellanos Enrique"],
@@ -78,7 +78,6 @@ meses_espanol = {
     7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
 
-# Inicializar almacenamiento de datos en la sesión
 if 'proyectos' not in st.session_state:
     st.session_state.proyectos = []
 
@@ -86,41 +85,36 @@ if 'proyectos' not in st.session_state:
 st.title("📊 Seguimiento OTIF IT")
 st.markdown("---")
 
-# Formulario de entrada
-with st.expander("➕ Registrar Nuevo Proyecto / Tren", expanded=True):
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        tren_sel = st.selectbox("Tren E2E", options=list(CONFIG_TRENES.keys()))
-    
-    with col2:
-        # Regla: Solo directores del tren seleccionado
-        dir_opciones = CONFIG_TRENES[tren_sel]["directores"]
-        dir_sel = st.selectbox("Director", options=dir_opciones)
-        
-    with col3:
-        # Regla: Solo RTEs del tren seleccionado
-        rte_opciones = CONFIG_TRENES[tren_sel]["rtes"]
-        rte_sel = st.selectbox("RTE Nombre", options=rte_opciones)
+with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
+    # Fila 1: Nombre y Clasificación
+    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+    with c1:
+        nombre_proyecto = st.text_input("Nombre del Proyecto (Tren E2E)")
+    with c2:
+        tren_tipo = st.selectbox("Clasificación Tren", options=list(CONFIG_TRENES.keys()))
+    with c3:
+        dir_sel = st.selectbox("Director", options=CONFIG_TRENES[tren_tipo]["directores"])
+    with c4:
+        rte_sel = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_tipo]["rtes"])
 
-    col4, col5, col6, col7 = st.columns(4)
-    with col4:
+    # Fila 2: Tiempos y Calidad
+    c5, c6, c7, c8 = st.columns(4)
+    with c5:
         f_plan = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
-    with col5:
+    with c6:
         f_real = st.date_input("Fecha Real", format="DD/MM/YYYY")
-    with col6:
+    with c7:
         in_full = st.selectbox("In Full", ["SÍ", "NO"])
-    with col7:
+    with c8:
         comentarios = st.text_input("Comentarios")
 
     if st.button("Registrar en Tablero"):
-        # Cálculos Automáticos
         mes_txt = meses_espanol[f_real.month]
         on_time = "SÍ" if f_real <= f_plan else "NO"
         otif = "SÍ" if (on_time == "SÍ" and in_full == "SÍ") else "NO"
         
         nuevo_registro = {
-            "Tren E2E": tren_sel,
+            "Tren E2E": nombre_proyecto,
             "Director": dir_sel,
             "RTE Nombre": rte_sel,
             "Mes de Salida": mes_txt,
@@ -140,13 +134,11 @@ with st.expander("➕ Registrar Nuevo Proyecto / Tren", expanded=True):
         st.session_state.proyectos.append(nuevo_registro)
         st.rerun()
 
-# 3. VISUALIZACIÓN DEL TABLERO
+# 3. TABLERO
 st.subheader("Tablero de Control (16 Columnas)")
 
 if st.session_state.proyectos:
     df_mostrar = pd.DataFrame(st.session_state.proyectos)
-    
-    # Configuración de visualización y edición de montos
     st.data_editor(
         df_mostrar,
         column_config={
