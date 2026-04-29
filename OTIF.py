@@ -74,7 +74,7 @@ def eliminar_registros(ids):
 
 crear_tabla()
 
-# --- CONFIGURACIÓN DE NEGOCIO ---
+# --- CONFIGURACIÓN DE NEGOCIO (REGLAS DE TRENES) ---
 CONFIG_TRENES = {
     "Comercial": {"directores": ["Ortiz de Montellanos Enrique"], "rtes": ["Hernandez Consuelo", "Mares Mireya"]},
     "eCommerce": {"directores": ["Muñoz Julio"], "rtes": ["Baltodano Karla"]},
@@ -109,12 +109,21 @@ st.title("📊 Dashboard OTIF - Portafolio 2026")
 
 with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     with st.form("registro_proyecto", clear_on_submit=True):
-        c2, c3, c4, c1 = st.columns([1, 1, 1, 2])
-        with c2: tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
-        with c3: dir_s = st.selectbox("Director", options=CONFIG_TRENES[tren_t]["directores"])
-        with c4: rte_s = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_t]["rtes"])
-        with c1: nombre_p = st.text_input("Nombre del Proyecto")
+        # Fila 1: Reglas de asignación
+        c_tren, c_dir, c_rte = st.columns(3)
+        with c_tren:
+            tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
+        with c_dir:
+            # Asegura que el director pertenezca al tren seleccionado
+            dir_s = st.selectbox("Director", options=CONFIG_TRENES[tren_t]["directores"])
+        with c_rte:
+            # Asegura que el RTE pertenezca al tren seleccionado
+            rte_s = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_t]["rtes"])
+        
+        # Fila 2: Nombre del proyecto
+        nombre_p = st.text_input("Nombre del Proyecto")
 
+        # Fila 3: Tiempos y Calidad
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
         with c6: f_r = st.date_input("Fecha Real", format="DD/MM/YYYY")
@@ -122,7 +131,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         with c8: com = st.text_input("Comentarios")
 
         st.markdown("### Finanzas")
-        # Checkbox meramente lógico
         es_ppto_anterior = st.checkbox("PPTO Año Anterior")
         
         f1, f2, f3, f4 = st.columns(4)
@@ -145,16 +153,10 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
             ot = "SÍ" if f_r <= f_p else "NO"
 
-            # LÓGICA DE DETECCIÓN: 
-            # Si el checkbox está marcado, forzamos internamente la regla del centavo 
-            # sin importar lo que el usuario escribió en t_ca.
+            # Lógica de detección interna para Regla del Centavo
             if in_f == "Sin avance":
                 otif_final = "Sin avance"
-            elif es_ppto_anterior: 
-                # Regla del centavo aplicada internamente por selección del checkbox
-                otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
-            elif ca == 0.01:
-                # Mantenemos también la detección manual por si el usuario escribe 0.01
+            elif es_ppto_anterior or ca == 0.01: 
                 otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
             else:
                 otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
@@ -200,7 +202,7 @@ if not df_datos.empty:
             "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_v7"
+        use_container_width=True, hide_index=True, key="main_editor_v8"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
