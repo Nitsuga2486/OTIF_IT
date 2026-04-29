@@ -108,60 +108,67 @@ def clean_numeric(value):
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
 with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
-    c2, c3, c4, c1 = st.columns([1, 1, 1, 2])
-    with c2: tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
-    with c3: dir_s = st.selectbox("Director", options=CONFIG_TRENES[tren_t]["directores"])
-    with c4: rte_s = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_t]["rtes"])
-    with c1: nombre_p = st.text_input("Nombre del Proyecto")
+    # Usamos un formulario para poder limpiar campos fácilmente
+    with st.form("registro_proyecto", clear_on_submit=True):
+        c2, c3, c4, c1 = st.columns([1, 1, 1, 2])
+        with c2: tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
+        with c3: dir_s = st.selectbox("Director", options=CONFIG_TRENES[tren_t]["directores"])
+        with c4: rte_s = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_t]["rtes"])
+        with c1: nombre_p = st.text_input("Nombre del Proyecto")
 
-    c5, c6, c7, c8 = st.columns(4)
-    with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
-    with c6: f_r = st.date_input("Fecha Real", format="DD/MM/YYYY")
-    with c7: in_f = st.selectbox("In Full", ["Sin avance", "SÍ", "NO"])
-    with c8: com = st.text_input("Comentarios")
+        c5, c6, c7, c8 = st.columns(4)
+        with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
+        with c6: f_r = st.date_input("Fecha Real", format="DD/MM/YYYY")
+        with c7: in_f = st.selectbox("In Full", ["Sin avance", "SÍ", "NO"])
+        with c8: com = st.text_input("Comentarios")
 
-    st.markdown("### Finanzas")
-    # Checkbox para PPTO Año Anterior
-    es_ppto_anterior = st.checkbox("PPTO Año Anterior (Aplica Regla del Centavo)")
-    
-    f1, f2, f3, f4 = st.columns(4)
-    with f1: 
-        # Si el checkbox está marcado, fijamos el valor a 0.01 y deshabilitamos el campo
-        if es_ppto_anterior:
-            t_ca = st.text_input("CAPEX Aprobado", value="0.01", disabled=True)
-        else:
-            t_ca = st.text_input("CAPEX Aprobado", value="0.00")
-            
-    with f2: t_ce = st.text_input("Ejecutado CAPEX", value="0.00")
-    with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
-    with f4: t_oe = st.text_input("Ejecutado OPEX", value="0.00")
-
-    if st.button("💾 Guardar Proyecto"):
-        ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
-        t_aprob, t_ejec = ca + oa, ce + oe
+        st.markdown("### Finanzas")
+        es_ppto_anterior = st.checkbox("PPTO Año Anterior")
         
-        on_b = "SÍ" if t_ejec <= t_aprob else "NO"
-        pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
-        ot = "SÍ" if f_r <= f_p else "NO"
+        f1, f2, f3, f4 = st.columns(4)
+        with f1: 
+            if es_ppto_anterior:
+                t_ca = st.text_input("CAPEX Aprobado", value="0.01", disabled=True)
+            else:
+                t_ca = st.text_input("CAPEX Aprobado", value="0.00")
+                
+        with f2: t_ce = st.text_input("Ejecutado CAPEX", value="0.00")
+        with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
+        with f4: t_oe = st.text_input("Ejecutado OPEX", value="0.00")
 
-        # Lógica OTIF con Regla del Centavo
-        if in_f == "Sin avance":
-            otif_final = "Sin avance"
-        elif ca == 0.01: # Si es 0.01 (por el checkbox o manual), ignoramos presupuesto
-            otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
-        else:
-            otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
+        # Botones de acción del formulario
+        c_btn1, c_btn2, _ = st.columns([1, 1, 4])
+        with c_btn1:
+            submit = st.form_submit_button("💾 Guardar")
+        with c_btn2:
+            # El botón de limpiar es nativo gracias al parámetro clear_on_submit del st.form
+            limpiar = st.form_submit_button("🧹 Limpiar")
 
-        mes = meses_espanol[f_r.month]
-        datos = {
-            "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, "mes_salida": mes,
-            "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f,
-            "capex_aprob": ca, "capex_ejec": ce, "pct_budget": pct_b, "on_budget": on_b,
-            "otif_x_proyecto": otif_final, "opex_aprob": oa, "opex_ejec": oe, "comentarios": com
-        }
-        guardar_registro(datos)
-        st.success(f"Proyecto {nombre_p} registrado exitosamente.")
-        st.rerun()
+        if submit:
+            ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
+            t_aprob, t_ejec = ca + oa, ce + oe
+            
+            on_b = "SÍ" if t_ejec <= t_aprob else "NO"
+            pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
+            ot = "SÍ" if f_r <= f_p else "NO"
+
+            if in_f == "Sin avance":
+                otif_final = "Sin avance"
+            elif ca == 0.01:
+                otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
+            else:
+                otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
+
+            mes = meses_espanol[f_r.month]
+            datos = {
+                "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, "mes_salida": mes,
+                "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f,
+                "capex_aprob": ca, "capex_ejec": ce, "pct_budget": pct_b, "on_budget": on_b,
+                "otif_x_proyecto": otif_final, "opex_aprob": oa, "opex_ejec": oe, "comentarios": com
+            }
+            guardar_registro(datos)
+            st.success(f"Proyecto {nombre_p} registrado exitosamente.")
+            st.rerun()
 
 # --- TABLERO ---
 df_datos = cargar_datos()
@@ -193,7 +200,7 @@ if not df_datos.empty:
             "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_final_v2"
+        use_container_width=True, hide_index=True, key="main_editor_v6"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
@@ -208,4 +215,3 @@ if not df_datos.empty:
         st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
 else:
     st.info("No hay registros en la base de datos.")
-    
