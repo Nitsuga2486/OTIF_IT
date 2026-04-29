@@ -1,91 +1,148 @@
 import streamlit as st
 import pandas as pd
-import numpy as np
 
-# Configuración de la página
-st.set_page_config(page_title="Estructura OTIF IT", layout="wide")
+# 1. CONFIGURACIÓN Y ESTILOS
+st.set_page_config(page_title="OTIF IT - Captura Inteligente", layout="wide")
 
-st.title("📊 Estructura de Seguimiento OTIF - Área IT")
-st.markdown("---")
-
-# 1. DEFINICIÓN DE OPCIONES (Fuera del editor para evitar SyntaxError)
-opciones_tren = [
-    "Comercial", "eCommerce", "Finanzas", "IT", "Nuevos Negocios", 
-    "Off Price", "Omnicanalidad", "One AXO", "Operaciones", 
-    "Operación en Tienda", "Palanca de Valor", "Privalia", 
-    "Recursos Humanos", "Sudamérica", "Ulta"
-]
-
-opciones_director = [
-    "Botello Antonio", "Diaz de Leon Lino", "Lopez-Portillo Salvador", 
-    "Miranda Vanessa", "Muñoz Julio", "Ortiz de Montellanos Enrique", 
-    "Posada Evelyn", "Quezada Guillermo", "Rojas Juan Manuel", "Reyes Israel"
-]
-
-opciones_rte = [
-    "Baltodano Karla", "Franco Edith", "Hernandez Consuelo", 
-    "Mares Mireya", "Moreno Jorge", "Navarrete Arantzasu", 
-    "N/A", "Miranda Vanessa"
-]
-
-meses_espanol = {
-    1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio",
-    7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
+# Mapeo de dependencias (Tren -> Directores -> RTEs)
+CONFIG_TRENES = {
+    "Comercial": {
+        "directores": ["Ortiz de Montellanos Enrique"],
+        "rtes": ["Moreno Jorge", "Baltodano Karla"]
+    },
+    "eCommerce": {
+        "directores": ["Muñoz Julio"],
+        "rtes": ["Mares Mireya"]
+    },
+    "Finanzas": {
+        "directores": ["Ortiz de Montellanos Enrique"],
+        "rtes": ["Hernandez Consuelo"]
+    },
+    "IT": {
+        "directores": ["Reyes Israel", "Lopez-Portillo Salvador"],
+        "rtes": ["Moreno Jorge", "Baltodano Karla", "Navarrete Arantzasu"]
+    },
+    "Nuevos Negocios": {
+        "directores": ["Botello Antonio", "Diaz de Leon Lino", "Lopez-Portillo Salvador", "Miranda Vanessa", "Muñoz Julio", "Ortiz de Montellanos Enrique", "Posada Evelyn", "Quezada Guillermo", "Rojas Juan Manuel", "Reyes Israel"],
+        "rtes": ["N/A"]
+    },
+    "Off Price": {
+        "directores": ["Ortiz de Montellanos Enrique"],
+        "rtes": ["Franco Edith"]
+    },
+    "Omnicanalidad": {
+        "directores": ["Muñoz Julio"],
+        "rtes": ["Mares Mireya"]
+    },
+    "One AXO": {
+        "directores": ["Diaz de Leon Lino", "Rojas Juan Manuel"],
+        "rtes": ["N/A"]
+    },
+    "Operaciones": {
+        "directores": ["Ortiz de Montellanos Enrique"],
+        "rtes": ["Hernandez Consuelo"]
+    },
+    "Operación en Tienda": {
+        "directores": ["Ortiz de Montellanos Enrique"],
+        "rtes": ["Franco Edith"]
+    },
+    "Palanca de Valor": {
+        "directores": ["Ortiz de Montellanos Enrique", "Posada Evelyn"],
+        "rtes": ["Baltodano Karla"]
+    },
+    "Privalia": {
+        "directores": ["Botello Antonio"],
+        "rtes": ["Mares Mireya"]
+    },
+    "Recursos Humanos": {
+        "directores": ["Ortiz de Montellanos Enrique"],
+        "rtes": ["Hernandez Consuelo"]
+    },
+    "Sudamérica": {
+        "directores": ["Quezada Guillermo"],
+        "rtes": ["N/A"]
+    },
+    "Ulta": {
+        "directores": ["Muñoz Julio", "Diaz de Leon Lino"],
+        "rtes": ["Franco Edith"]
+    }
 }
 
-# 2. DEFINICIÓN DE LAS 16 COLUMNAS
-columnas = [
-    "Tren E2E", "Director", "RTE Nombre", "Mes de Salida", 
-    "Fecha Planeada", "Fecha Real", "On Time", "In Full", 
-    "CAPEX Aprobado por Finanzas", "Ejecutado CAPEX", "% Budget", 
-    "On Budget", "OTIF X Proyecto", "OPEX Aprobado por Finanzas", 
-    "Ejecutado OPEX", "Comentarios"
-]
+meses_espanol = {1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"}
 
-# 3. INICIALIZACIÓN DEL ESTADO
-if 'df_data' not in st.session_state:
-    df_init = pd.DataFrame([[None] * len(columnas)] * 5, columns=columnas)
-    # Forzar tipos datetime para evitar errores de validación
-    df_init['Fecha Planeada'] = pd.to_datetime(df_init['Fecha Planeada'])
-    df_init['Fecha Real'] = pd.to_datetime(df_init['Fecha Real'])
-    st.session_state.df_data = df_init
+# Inicializar almacenamiento de datos
+if 'proyectos' not in st.session_state:
+    st.session_state.proyectos = []
 
-# 4. VISUALIZACIÓN INTERACTIVA
-st.subheader("Layout de Seguimiento")
-
-edited_df = st.data_editor(
-    st.session_state.df_data,
-    column_config={
-        "Tren E2E": st.column_config.SelectboxColumn("Tren E2E", options=opciones_tren),
-        "Director": st.column_config.SelectboxColumn("Director", options=opciones_director),
-        "RTE Nombre": st.column_config.SelectboxColumn("RTE Nombre", options=opciones_rte),
-        "Mes de Salida": st.column_config.TextColumn("Mes de Salida", disabled=True),
-        "Fecha Planeada": st.column_config.DateColumn("Fecha Planeada", format="DD/MM/YYYY"),
-        "Fecha Real": st.column_config.DateColumn("Fecha Real", format="DD/MM/YYYY"),
-    },
-    use_container_width=True,
-    hide_index=True,
-    num_rows="dynamic",
-    key="editor_otif_final"
-)
-
-# 5. LÓGICA DE PROCESAMIENTO
-if edited_df is not None:
-    # Asegurar que la columna Fecha Real sea datetime
-    edited_df['Fecha Real'] = pd.to_datetime(edited_df['Fecha Real'])
+# 2. FORMULARIO DE CAPTURA CON REGLAS
+st.title("📊 Seguimiento OTIF IT - Entrada de Datos")
+with st.expander("➕ Agregar Nuevo Proyecto / Tren", expanded=True):
+    col1, col2, col3 = st.columns(3)
     
-    # Calcular el nombre del mes
-    def calcular_mes(fecha):
-        if pd.notnull(fecha):
-            return meses_espanol.get(fecha.month, "")
-        return ""
-
-    nuevos_meses = edited_df['Fecha Real'].apply(calcular_mes)
+    with col1:
+        tren_sel = st.selectbox("Selecciona Tren E2E", options=list(CONFIG_TRENES.keys()))
     
-    # Solo actualizamos el estado si hubo un cambio real en el Mes de Salida
-    if not (edited_df['Mes de Salida'].fillna("") == nuevos_meses.fillna("")).all():
-        edited_df['Mes de Salida'] = nuevos_meses
-        st.session_state.df_data = edited_df
-        st.rerun()
+    # Aquí aplicamos la regla de filtrado basada en la selección anterior
+    with col2:
+        dir_opciones = CONFIG_TRENES[tren_sel]["directores"]
+        dir_sel = st.selectbox("Director Responsable", options=dir_opciones)
+        
+    with col3:
+        rte_opciones = CONFIG_TRENES[tren_sel]["rtes"]
+        rte_sel = st.selectbox("RTE Asignado", options=rte_opciones)
 
-st.info("📅 El 'Mes de Salida' se actualiza automáticamente al seleccionar una 'Fecha Real'.")
+    col4, col5, col6 = st.columns(3)
+    with col4:
+        f_plan = st.date_input("Fecha Planeada")
+    with col5:
+        f_real = st.date_input("Fecha Real")
+    with col6:
+        in_full = st.selectbox("In Full", ["SÍ", "NO"])
+
+    if st.button("Registrar en Tablero"):
+        mes_txt = meses_espanol[f_real.month]
+        on_time = "SÍ" if f_real <= f_plan else "NO"
+        otif = "SÍ" if (on_time == "SÍ" and in_full == "SÍ") else "NO"
+        
+        nuevo_registro = {
+            "Tren E2E": tren_sel,
+            "Director": dir_sel,
+            "RTE Nombre": rte_sel,
+            "Mes de Salida": mes_txt,
+            "Fecha Planeada": f_plan,
+            "Fecha Real": f_real,
+            "On Time": on_time,
+            "In Full": in_full,
+            "CAPEX Aprobado por Finanzas": 0,
+            "Ejecutado CAPEX": 0,
+            "% Budget": "0%",
+            "On Budget": "SÍ",
+            "OTIF X Proyecto": otif,
+            "OPEX Aprobado por Finanzas": 0,
+            "Ejecutado OPEX": 0,
+            "Comentarios": ""
+        }
+        st.session_state.proyectos.append(nuevo_registro)
+        st.success("Proyecto agregado con éxito.")
+
+# 3. TABLERO DE RESULTADOS
+st.markdown("---")
+st.subheader("Tablero de Seguimiento (16 Columnas)")
+
+if st.session_state.proyectos:
+    df_mostrar = pd.DataFrame(st.session_state.proyectos)
+    
+    # Editor para las columnas restantes (Capex, Opex, Comentarios)
+    st.data_editor(
+        df_mostrar,
+        column_config={
+            "Mes de Salida": st.column_config.TextColumn(disabled=True),
+            "On Time": st.column_config.TextColumn(disabled=True),
+            "OTIF X Proyecto": st.column_config.TextColumn(disabled=True),
+            "% Budget": st.column_config.TextColumn(disabled=True),
+        },
+        use_container_width=True,
+        hide_index=True
+    )
+else:
+    st.info("Aún no hay proyectos registrados. Utiliza el formulario superior.")
