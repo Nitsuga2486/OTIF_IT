@@ -8,12 +8,12 @@ st.set_page_config(page_title="OTIF 2026 Ongoing", layout="wide")
 
 # --- FUNCIONES DE PERSISTENCIA ---
 def conectar_db():
-    # Nota: Si el error de KeyError persiste en la nube, cambia el nombre a 'otif_v4.db'
     return sqlite3.connect('otif_it_data.db')
 
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
+    # Definimos exactamente 16 columnas de datos + 1 id autoincremental
     c.execute('''CREATE TABLE IF NOT EXISTS proyectos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
@@ -26,16 +26,21 @@ def crear_tabla():
 def guardar_registro(d):
     conn = conectar_db()
     c = conn.cursor()
-    query = '''INSERT INTO proyectos (tren_e2e, director, rte_nombre, mes_salida, fecha_plan, fecha_real, 
-               on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, otif_x_proyecto, 
-               opex_aprob, opex_ejec, comentarios) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'''
-    # IMPORTANTE: Los nombres aquí deben coincidir EXACTAMENTE con las llaves del diccionario 'datos'
-    c.execute(query, (
+    # La consulta debe tener exactamente 16 signos de interrogación (uno por cada columna menos el ID)
+    query = '''INSERT INTO proyectos 
+               (tren_e2e, director, rte_nombre, mes_salida, fecha_plan, fecha_real, 
+                on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, 
+                otif_x_proyecto, opex_aprob, opex_ejec, comentarios) 
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
+    
+    valores = (
         d["tren_e2e"], d["director"], d["rte_nombre"], d["mes_salida"],
         str(d["fecha_plan"]), str(d["fecha_real"]), d["on_time"], d["in_full"],
         d["capex_aprob"], d["capex_ejec"], d["pct_budget"], d["on_budget"],
         d["otif_x_proyecto"], d["opex_aprob"], d["opex_ejec"], d["comentarios"]
-    ))
+    )
+    
+    c.execute(query, valores)
     conn.commit()
     conn.close()
 
@@ -138,7 +143,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
 
         mes = meses_espanol[f_r.month]
         
-        # AQUÍ ESTABA EL ERROR: Las llaves deben coincidir con la función guardar_registro
         datos = {
             "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, "mes_salida": mes,
             "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f,
@@ -146,7 +150,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             "otif_x_proyecto": otif_final, "opex_aprob": oa, "opex_ejec": oe, "comentarios": com
         }
         guardar_registro(datos)
-        st.success(f"Proyecto {nombre_p} registrado.")
+        st.success(f"Proyecto {nombre_p} registrado exitosamente.")
         st.rerun()
 
 # --- TABLERO ---
@@ -175,9 +179,11 @@ if not df_datos.empty:
             "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
             "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
             "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
+            "Fecha Planeada": st.column_config.DateColumn(format="DD/MM/YYYY"),
+            "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_v4"
+        use_container_width=True, hide_index=True, key="main_editor_v5"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
@@ -191,4 +197,4 @@ if not df_datos.empty:
     with col_acc2:
         st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
 else:
-    st.info("Inicia la captura.")
+    st.info("No hay registros en la base de datos.")
