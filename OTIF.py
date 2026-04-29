@@ -43,6 +43,3 @@ st.dataframe(
     use_container_width=True, 
     hide_index=True
 )
-
-# 3. NOTA TÉCNICA
-st.info("Esta es la estructura base solicitada. El diseño está optimizado para desplazamiento horizontal debido al número de columnas.")
