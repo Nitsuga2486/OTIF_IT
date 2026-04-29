@@ -97,7 +97,7 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
     with c4:
         rte_sel = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_tipo]["rtes"])
 
-    # Fila 2: Fechas y OTIF
+    # Fila 2: Fechas y Calidad
     c5, c6, c7, c8 = st.columns(4)
     with c5:
         f_plan = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
@@ -108,16 +108,17 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
     with c8:
         comentarios = st.text_input("Comentarios")
 
-    # Fila 3: Finanzas (CAPEX y OPEX)
+    # Fila 3: Finanzas (Moneda Nacional)
+    st.markdown("### Presupuesto (MXN)")
     f1, f2, f3, f4 = st.columns(4)
     with f1:
-        capex_aprob = st.number_input("CAPEX Aprobado Finanzas", min_value=0.0, format="%.2f")
+        capex_aprob = st.number_input("CAPEX Aprobado Finanzas", min_value=0.0, step=100.0, format="%.2f")
     with f2:
-        capex_ejec = st.number_input("Ejecutado CAPEX", min_value=0.0, format="%.2f")
+        capex_ejec = st.number_input("Ejecutado CAPEX", min_value=0.0, step=100.0, format="%.2f")
     with f3:
-        opex_aprob = st.number_input("OPEX Aprobado Finanzas", min_value=0.0, format="%.2f")
+        opex_aprob = st.number_input("OPEX Aprobado Finanzas", min_value=0.0, step=100.0, format="%.2f")
     with f4:
-        opex_ejec = st.number_input("Ejecutado OPEX", min_value=0.0, format="%.2f")
+        opex_ejec = st.number_input("Ejecutado OPEX", min_value=0.0, step=100.0, format="%.2f")
 
     if st.button("Registrar en Tablero"):
         # Cálculos automáticos
@@ -157,6 +158,8 @@ st.subheader("Tablero de Control (16 Columnas)")
 
 if st.session_state.proyectos:
     df_mostrar = pd.DataFrame(st.session_state.proyectos)
+    
+    # Configuración de columnas para el tablero
     st.data_editor(
         df_mostrar,
         column_config={
@@ -167,14 +170,15 @@ if st.session_state.proyectos:
             "% Budget": st.column_config.TextColumn(disabled=True),
             "Fecha Planeada": st.column_config.DateColumn(format="DD/MM/YYYY"),
             "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
-            "CAPEX Aprobado por Finanzas": st.column_config.NumberColumn(format="$%.2f"),
-            "Ejecutado CAPEX": st.column_config.NumberColumn(format="$%.2f"),
-            "OPEX Aprobado por Finanzas": st.column_config.NumberColumn(format="$%.2f"),
-            "Ejecutado OPEX": st.column_config.NumberColumn(format="$%.2f"),
+            # Expresión en Moneda Nacional para el tablero
+            "CAPEX Aprobado por Finanzas": st.column_config.NumberColumn("CAPEX Aprobado", format="$ %.2f"),
+            "Ejecutado CAPEX": st.column_config.NumberColumn("Ejecutado CAPEX", format="$ %.2f"),
+            "OPEX Aprobado por Finanzas": st.column_config.NumberColumn("OPEX Aprobado", format="$ %.2f"),
+            "Ejecutado OPEX": st.column_config.NumberColumn("Ejecutado OPEX", format="$ %.2f"),
         },
         use_container_width=True,
         hide_index=True,
-        key="main_table"
+        key="main_table_v4"
     )
     
     if st.button("Limpiar Tablero"):
