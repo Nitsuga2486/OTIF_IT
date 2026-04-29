@@ -6,7 +6,7 @@ import re
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OTIF 2026 - Control Portafolio", layout="wide")
 
-# --- ESTILOS CSS PARA TABLAS ---
+# --- ESTILOS CSS ---
 st.markdown("""
     <style>
     .stTable td:nth-child(n+2), .stTable th:nth-child(n+2) { text-align: center !important; }
@@ -14,7 +14,7 @@ st.markdown("""
     </style>
     """, unsafe_allow_html=True)
 
-# --- CONSTANTES DE NEGOCIO Y ESTRUCTURA ---
+# --- CONSTANTES DE NEGOCIO ---
 CONFIG_TRENES = {
     "Comercial": {"directores": ["Ortiz de Montellanos Enrique"], "rtes": ["Hernandez Consuelo", "Mares Mireya"]},
     "eCommerce": {"directores": ["Muñoz Julio"], "rtes": ["Baltodano Karla"]},
@@ -55,15 +55,21 @@ def crear_tabla():
                   tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
                   fecha_plan TEXT, fecha_real TEXT, on_time TEXT, in_full TEXT,
                   capex_aprob REAL, capex_ejec REAL, pct_budget TEXT, on_budget TEXT,
-                  otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT)''')
+                  otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT,
+                  estatus TEXT)''')
     conn.commit()
     conn.close()
 
 def guardar_registro(d):
     conn = conectar_db()
     c = conn.cursor()
-    query = "INSERT INTO proyectos (tren_e2e, director, rte_nombre, mes_salida, fecha_plan, fecha_real, on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, otif_x_proyecto, opex_aprob, opex_ejec, comentarios) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"
-    c.execute(query, (d["tren_e2e"], d["director"], d["rte_nombre"], d["mes_salida"], str(d["fecha_plan"]), str(d["fecha_real"]), d["on_time"], d["in_full"], d["capex_aprob"], d["capex_ejec"], d["pct_budget"], d["on_budget"], d["otif_x_proyecto"], d["opex_aprob"], d["opex_ejec"], d["comentarios"]))
+    query = """INSERT INTO proyectos (tren_e2e, director, rte_nombre, mes_salida, fecha_plan, fecha_real, 
+               on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, otif_x_proyecto, 
+               opex_aprob, opex_ejec, comentarios, estatus) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
+    c.execute(query, (d["tren_e2e"], d["director"], d["rte_nombre"], d["mes_salida"], str(d["fecha_plan"]), 
+                      str(d["fecha_real"]), d["on_time"], d["in_full"], d["capex_aprob"], d["capex_ejec"], 
+                      d["pct_budget"], d["on_budget"], d["otif_x_proyecto"], d["opex_aprob"], d["opex_ejec"], 
+                      d["comentarios"], d["estatus"]))
     conn.commit()
     conn.close()
 
@@ -72,7 +78,9 @@ def cargar_datos():
     try:
         df = pd.read_sql_query("SELECT * FROM proyectos", conn)
         if not df.empty:
-            df.rename(columns={"tren_e2e": "Tren E2E", "director": "Director", "rte_nombre": "RTE Nombre", "on_time": "On Time", "in_full": "In Full", "capex_aprob": "CAPEX Aprobado", "otif_x_proyecto": "OTIF X Proy"}, inplace=True)
+            df.rename(columns={"tren_e2e": "Tren E2E", "director": "Director", "rte_nombre": "RTE Nombre", 
+                               "on_time": "On Time", "in_full": "In Full", "capex_aprob": "CAPEX Aprobado", 
+                               "otif_x_proyecto": "OTIF X Proy", "estatus": "Estatus"}, inplace=True)
             for col in ["CAPEX Aprobado", "capex_ejec", "opex_aprob", "opex_ejec"]:
                 if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
     except: df = pd.DataFrame()
@@ -100,10 +108,8 @@ st.title("📊 Dashboard OTIF - Portafolio 2026")
 with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
     c_tren, c_dir, c_rte = st.columns(3)
     with c_tren: tren_t = st.selectbox("1. Selecciona Tren", options=["Seleccionar"] + list(CONFIG_TRENES.keys()), key="sel_tren")
-    
     op_dir = ["Seleccionar"] + CONFIG_TRENES[tren_t]["directores"] if tren_t != "Seleccionar" else ["Seleccionar"]
     op_rte = ["Seleccionar"] + CONFIG_TRENES[tren_t]["rtes"] if tren_t != "Seleccionar" else ["Seleccionar"]
-
     with c_dir: dir_s = st.selectbox("2. Director Responsable", options=op_dir, key="sel_dir")
     with c_rte: rte_s = st.selectbox("3. RTE asignado", options=op_rte, key="sel_rte")
 
@@ -111,9 +117,15 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
-        with c6: f_r = st.date_input("Fecha Real", format="DD/MM/YYYY")
-        with c7: in_f_sel = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
-        with c8: com = st.text_input("Comentarios")
+        with c6: f_r = st.date_input("Fecha Real / Estimada", format="DD/MM/YYYY")
+        
+        # NUEVA LÓGICA: On Time Manual
+        with c7: ot_manual = st.selectbox("On Time", ["Seleccionar", "SÍ", "NO"])
+        with c8: in_f_sel = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
+
+        c_est, c_com = st.columns([1, 3])
+        with c_est: est_sel = st.selectbox("Estatus Proyecto", ["Seleccionar", "Liberado", "Retrasado", "En Curso"])
+        with c_com: com = st.text_input("Comentarios")
 
         st.markdown("### Finanzas")
         es_ppto_anterior = st.checkbox("PPTO Año Anterior")
@@ -124,30 +136,38 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
         with f4: t_oe = st.text_input("Ejecutado OPX", value="0.00")
 
         if st.form_submit_button("💾 Guardar Proyecto"):
-            if "Seleccionar" in [tren_t, dir_s, rte_s, in_f_sel] or not nombre_p.strip():
+            if "Seleccionar" in [tren_t, dir_s, rte_s, ot_manual, in_f_sel, est_sel] or not nombre_p.strip():
                 st.error("⚠️ Completa todos los campos obligatorios.")
             else:
                 ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
                 t_aprob, t_ejec = ca + oa, ce + oe
-                ot = "SÍ" if f_r <= f_p else "NO"
                 on_b = "SÍ" if t_ejec <= t_aprob else "NO"
                 
-                if in_f_sel == "Sin avance": otif_final = "Sin avance"
-                elif es_ppto_anterior or ca == 0.01: otif_final = "SÍ" if (ot == "SÍ" and in_f_sel == "SÍ") else "NO"
-                else: otif_final = "SÍ" if (ot == "SÍ" and in_f_sel == "SÍ" and on_b == "SÍ") else "NO"
+                # OTIF depende de tu selección manual de On Time
+                if in_f_sel == "Sin avance": 
+                    otif_final = "Sin avance"
+                elif es_ppto_anterior or ca == 0.01: 
+                    otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ") else "NO"
+                else: 
+                    otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ" and on_b == "SÍ") else "NO"
 
-                guardar_registro({"tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, "mes_salida": MESES[f_r.month], "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f_sel, "capex_aprob": ca, "capex_ejec": ce, "pct_budget": f"{(t_ejec/t_aprob*100):.1f}%" if t_aprob > 0 else "0.0%", "on_budget": on_b, "otif_x_proyecto": otif_final, "opex_aprob": oa, "opex_ejec": oe, "comentarios": com})
-                st.success("✅ Registrado."); st.rerun()
+                guardar_registro({
+                    "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, 
+                    "mes_salida": MESES[f_r.month], "fecha_plan": f_p, "fecha_real": f_r, 
+                    "on_time": ot_manual, "in_full": in_f_sel, "capex_aprob": ca, 
+                    "capex_ejec": ce, "pct_budget": f"{(t_ejec/t_aprob*100):.1f}%" if t_aprob > 0 else "0.0%", 
+                    "on_budget": on_b, "otif_x_proyecto": otif_final, "opex_aprob": oa, 
+                    "opex_ejec": oe, "comentarios": com, "estatus": est_sel
+                })
+                st.success("✅ Proyecto Registrado."); st.rerun()
 
-# --- PROCESAMIENTO DE RESUMEN (DOBLE CONTABILIZACIÓN) ---
+# --- PROCESAMIENTO DE RESUMEN ---
 df_datos = cargar_datos()
 
 with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=True):
     if not df_datos.empty:
-        dir_bd = df_datos["Director"].unique().tolist()
         dir_conf = [d for t in CONFIG_TRENES.values() for d in t["directores"]]
-        nombres_maestra = sorted(list(set(dir_bd + dir_conf + list(ESTRUCTURA_REPORTES.keys()))))
-        
+        nombres_maestra = sorted(list(set(df_datos["Director"].unique().tolist() + dir_conf + list(ESTRUCTURA_REPORTES.keys()))))
         filas = []
         for n in nombres_maestra:
             mask_dir = (df_datos["Director"] == n)
@@ -159,7 +179,13 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
             
             df_f = df_datos[mask_dir | mask_lid].drop_duplicates()
             if not df_f.empty:
-                filas.append({"Líder / Director": n, "On Time (%)": (df_f["On Time"] == "SÍ").mean()*100, "In Full (%)": (df_f["In Full"] == "SÍ").mean()*100, "Total CAPEX": df_f["CAPEX Aprobado"].sum(), "OTIF Global (%)": (df_f["OTIF X Proy"] == "SÍ").mean()*100})
+                filas.append({
+                    "Líder / Director": n, 
+                    "On Time (%)": (df_f["On Time"] == "SÍ").mean()*100, 
+                    "In Full (%)": (df_f["In Full"] == "SÍ").mean()*100, 
+                    "Total CAPEX": df_f["CAPEX Aprobado"].sum(), 
+                    "OTIF Global (%)": (df_f["OTIF X Proy"] == "SÍ").mean()*100
+                })
             else:
                 filas.append({"Líder / Director": n, "On Time (%)": 0, "In Full (%)": 0, "Total CAPEX": 0, "OTIF Global (%)": 0})
         
@@ -170,7 +196,14 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
 if not df_datos.empty:
     with st.expander("🗂️ Matriz Principal - Detalle", expanded=True):
         df_edit = df_datos.copy(); df_edit.insert(0, "Seleccionar", False)
-        res_ed = st.data_editor(df_edit.drop(columns=['id']), column_config={"CAPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f")}, use_container_width=True, hide_index=True, key="editor_vFinal")
+        res_ed = st.data_editor(df_edit.drop(columns=['id']), 
+                                column_config={
+                                    "CAPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
+                                    "On Time": st.column_config.SelectboxColumn(options=["SÍ", "NO"]),
+                                    "In Full": st.column_config.SelectboxColumn(options=["Sin avance", "SÍ", "NO"]),
+                                    "Estatus": st.column_config.SelectboxColumn(options=["Liberado", "Retrasado", "En Curso"])
+                                }, 
+                                use_container_width=True, hide_index=True, key="editor_vFinal_Manual")
         
         ids_del = df_datos.iloc[res_ed[res_ed["Seleccionar"] == True].index]["id"].tolist()
         c1, c2 = st.columns([1, 5])
