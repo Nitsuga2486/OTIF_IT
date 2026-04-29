@@ -74,6 +74,10 @@ def cargar_datos():
         }
         if not df.empty:
             df.rename(columns=column_map, inplace=True)
+            # Asegurar que las columnas financieras sean numéricas
+            cols_fin = ["CAPEX Aprobado", "Ejecutado CPX", "OPEX Aprobado", "Ejecutado OPX"]
+            for col in cols_fin:
+                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
     except:
         df = pd.DataFrame()
     finally:
@@ -123,7 +127,7 @@ def clean_numeric(value):
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
 # SECCIÓN 1: NUEVO REGISTRO
-with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
+with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
     c_tren, c_dir, c_rte = st.columns(3)
     with c_tren:
         tren_t = st.selectbox("1. Selecciona Tren", options=["Seleccionar"] + list(CONFIG_TRENES.keys()), key="sel_tren")
@@ -229,7 +233,6 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
     resumen_final = pd.merge(df_maestra, res_calc, on="Líder", how="left").fillna(0)
     
     resumen_final.columns = ["Líder / Director", "On Time (%)", "In Full (%)", "Total CAPEX", "OTIF Global (%)"]
-    
     resumen_final["On Time (%)"] *= 100
     resumen_final["In Full (%)"] *= 100
     resumen_final["OTIF Global (%)"] *= 100
@@ -241,7 +244,7 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
 
 # SECCIÓN 3: MATRIZ PRINCIPAL
 if not df_datos.empty:
-    with st.expander("🗂️ Matriz Principal - Detalle de Proyectos", expanded=False):
+    with st.expander("🗂️ Matriz Principal - Detalle de Proyectos", expanded=True):
         df_con_check = df_datos.copy()
         df_con_check.insert(0, "Seleccionar", False)
         res_edicion = st.data_editor(
@@ -254,7 +257,7 @@ if not df_datos.empty:
                 "Ejecutado OPX": st.column_config.NumberColumn(format="$ %,.2f"),
             },
             disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-            use_container_width=True, hide_index=True, key="main_editor_final_v4"
+            use_container_width=True, hide_index=True, key="main_editor_final_v5"
         )
         
         ids_del = df_datos.iloc[res_edicion[res_edicion["Seleccionar"] == True].index]["id"].tolist()
@@ -264,7 +267,7 @@ if not df_datos.empty:
                 eliminar_registros(ids_del)
                 st.rerun()
         with c_exp:
-            # CORRECCIÓN DE EXPORTACIÓN: se añade utf-8-sig para que Excel reconozca los acentos y la Ñ
+            # EXPORTACIÓN: UTF-8-SIG mantiene caracteres especiales; valores numéricos permiten formato moneda en Excel
             csv_data = df_datos.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
                 label="📥 Exportar Matriz Completa (CSV)",
