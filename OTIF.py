@@ -107,14 +107,13 @@ def clean_numeric(value):
 # --- INTERFAZ ---
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
+# SECCIÓN 1: NUEVO REGISTRO
 with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
-    # Selectores dinámicos con opción inicial "Seleccionar"
     c_tren, c_dir, c_rte = st.columns(3)
     
     with c_tren:
         tren_t = st.selectbox("1. Selecciona Tren", options=["Seleccionar"] + list(CONFIG_TRENES.keys()), key="sel_tren")
     
-    # Lógica de cascada
     if tren_t != "Seleccionar":
         opciones_directores = ["Seleccionar"] + CONFIG_TRENES[tren_t]["directores"]
         opciones_rtes = ["Seleccionar"] + CONFIG_TRENES[tren_t]["rtes"]
@@ -127,7 +126,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     with c_rte:
         rte_s = st.selectbox("3. RTE asignado", options=opciones_rtes, key="sel_rte")
 
-    # Formulario
     with st.form("registro_proyecto", clear_on_submit=True):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
 
@@ -146,7 +144,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
         with f4: t_oe = st.text_input("Ejecutado OPEX", value="0.00")
 
-        # Validación para habilitar el botón
         campos_listos = tren_t != "Seleccionar" and dir_s != "Seleccionar" and rte_s != "Seleccionar" and nombre_p.strip() != ""
 
         if st.form_submit_button("💾 Guardar Proyecto", disabled=not campos_listos):
@@ -178,46 +175,50 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         if not campos_listos:
             st.warning("⚠️ Debes seleccionar Tren, Director, RTE e ingresar un nombre para habilitar el guardado.")
 
-# --- TABLERO ---
+# --- DATOS CARGADOS ---
 df_datos = cargar_datos()
 
 if not df_datos.empty:
-    if "OTIF X Proyecto" in df_datos.columns:
-        st.subheader("📈 Resumen de Cumplimiento por Director")
-        df_validos = df_datos[df_datos["OTIF X Proyecto"].isin(["SÍ", "NO"])].copy()
-        if not df_validos.empty:
-            df_validos["Puntos"] = df_validos["OTIF X Proyecto"].map({"SÍ": 1, "NO": 0})
-            resumen = df_validos.groupby("Director")["Puntos"].mean() * 100
-            resumen_df = resumen.reset_index()
-            resumen_df.columns = ["Director", "% OTIF Global"]
-            st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
-    
-    st.subheader("Matriz Principal (Detalle por Proyecto)")
-    df_con_check = df_datos.copy()
-    df_con_check.insert(0, "Seleccionar", False)
-    
-    res_edicion = st.data_editor(
-        df_con_check.drop(columns=['id']), 
-        column_config={
-            "Seleccionar": st.column_config.CheckboxColumn(""),
-            "CAPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
-            "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
-            "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
-            "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
-        },
-        disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_v11"
-    )
+    # SECCIÓN 2: RESUMEN DE CUMPLIMIENTO (DESPLEGABLE)
+    with st.expander("📈 Resumen de Cumplimiento por Director", expanded=False):
+        if "OTIF X Proyecto" in df_datos.columns:
+            df_validos = df_datos[df_datos["OTIF X Proyecto"].isin(["SÍ", "NO"])].copy()
+            if not df_validos.empty:
+                df_validos["Puntos"] = df_validos["OTIF X Proyecto"].map({"SÍ": 1, "NO": 0})
+                resumen = df_validos.groupby("Director")["Puntos"].mean() * 100
+                resumen_df = resumen.reset_index()
+                resumen_df.columns = ["Director", "% OTIF Global"]
+                st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
+            else:
+                st.info("No hay datos calificados (SÍ/NO) para generar el resumen aún.")
 
-    filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
-    ids_a_eliminar = df_datos.iloc[filas_marcadas]["id"].tolist()
+    # SECCIÓN 3: MATRIZ PRINCIPAL (DESPLEGABLE)
+    with st.expander("🗂️ Matriz Principal - Detalle de Proyectos", expanded=True):
+        df_con_check = df_datos.copy()
+        df_con_check.insert(0, "Seleccionar", False)
+        
+        res_edicion = st.data_editor(
+            df_con_check.drop(columns=['id']), 
+            column_config={
+                "Seleccionar": st.column_config.CheckboxColumn(""),
+                "CAPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
+                "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
+                "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
+                "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
+            },
+            disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
+            use_container_width=True, hide_index=True, key="main_editor_v12"
+        )
 
-    col_acc1, col_acc2 = st.columns([1, 5])
-    with col_acc1:
-        if st.button(f"🗑️ Borrar ({len(ids_a_eliminar)})", type="primary", disabled=len(ids_a_eliminar)==0):
-            eliminar_registros(ids_a_eliminar)
-            st.rerun()
-    with col_acc2:
-        st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
+        filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
+        ids_a_eliminar = df_datos.iloc[filas_marcadas]["id"].tolist()
+
+        col_acc1, col_acc2 = st.columns([1, 5])
+        with col_acc1:
+            if st.button(f"🗑️ Borrar ({len(ids_a_eliminar)})", type="primary", disabled=len(ids_a_eliminar)==0):
+                eliminar_registros(ids_a_eliminar)
+                st.rerun()
+        with col_acc2:
+            st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
 else:
     st.info("No hay registros en la base de datos.")
