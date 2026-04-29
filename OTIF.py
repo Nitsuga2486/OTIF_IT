@@ -36,16 +36,15 @@ opciones_tren = [
 ]
 
 opciones_director = [
-    "Botello Antonio",
-    "Diaz de Leon Lino",
-    "Lopez-Portillo Salvador",
-    "Miranda Vanessa",
-    "Muñoz Julio",
-    "Ortiz de Montellanos Enrique",
-    "Posada Evelyn",
-    "Quezada Guillermo",
-    "Rojas Juan Manuel",
-    "Reyes Israel"
+    "Botello Antonio", "Diaz de Leon Lino", "Lopez-Portillo Salvador", 
+    "Miranda Vanessa", "Muñoz Julio", "Ortiz de Montellanos Enrique", 
+    "Posada Evelyn", "Quezada Guillermo", "Rojas Juan Manuel", "Reyes Israel"
+]
+
+opciones_rte = [
+    "Baltodano Karla", "Franco Edith", "Hernandez Consuelo", 
+    "Mares Mireya", "Moreno Jorge", "Navarrete Arantzasu", 
+    "N/A", "Miranda Vanessa"
 ]
 
 # Creamos un DataFrame inicial con 5 filas vacías
@@ -69,6 +68,12 @@ st.data_editor(
             help="Selecciona el Director responsable",
             options=opciones_director,
             required=True,
+        ),
+        "RTE Nombre": st.column_config.SelectboxColumn(
+            "RTE Nombre",
+            help="Selecciona el RTE asignado",
+            options=opciones_rte,
+            required=True,
         )
     },
     use_container_width=True,
@@ -76,4 +81,4 @@ st.data_editor(
     num_rows="dynamic"
 )
 
-st.info("Estructura lista con menús desplegables en 'Tren E2E' y 'Director'.")
+st.info("Estructura lista con validación en las primeras 3 columnas (Tren, Director y RTE).")
