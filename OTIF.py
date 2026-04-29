@@ -95,10 +95,10 @@ with st.expander("➕ Registrar Nuevo Proyecto / Avance", expanded=True):
     c5, c6, c7, c8 = st.columns(4)
     with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
     with c6: f_r = st.date_input("Fecha Real (Dejar hoy si no ha terminado)", format="DD/MM/YYYY")
-    with c7: in_f = st.selectbox("In Full", ["Esperando...", "SÍ", "NO"])
+    with c7: in_f = st.selectbox("In Full", ["SÍ", "NO"])
     with c8: com = st.text_input("Comentarios")
 
-    st.markdown("### Finanzas (Regla del Centavo: Aprobado = 0.01)")
+    st.markdown("### Finanzas")
     f1, f2, f3, f4 = st.columns(4)
     with f1: t_ca = st.text_input("CAPEX Aprobado", value="0.00")
     with f2: t_ce = st.text_input("Ejecutado CAPEX", value="0.00")
