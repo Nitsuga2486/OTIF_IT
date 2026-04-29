@@ -228,14 +228,12 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
     df_maestra = pd.DataFrame({"Líder": maestra_lideres})
     resumen_final = pd.merge(df_maestra, res_calc, on="Líder", how="left").fillna(0)
     
-    # Quitar columna de conteo y renombrar
     resumen_final.columns = ["Líder / Director", "On Time (%)", "In Full (%)", "Total CAPEX", "OTIF Global (%)"]
     
     resumen_final["On Time (%)"] *= 100
     resumen_final["In Full (%)"] *= 100
     resumen_final["OTIF Global (%)"] *= 100
     
-    # Estilo de tabla centrado
     st.table(resumen_final.style.format({
         "On Time (%)": "{:.1f}%", "In Full (%)": "{:.1f}%",
         "Total CAPEX": "$ {:,.2f}", "OTIF Global (%)": "{:.1f}%"
@@ -256,7 +254,7 @@ if not df_datos.empty:
                 "Ejecutado OPX": st.column_config.NumberColumn(format="$ %,.2f"),
             },
             disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-            use_container_width=True, hide_index=True, key="main_editor_final_v3"
+            use_container_width=True, hide_index=True, key="main_editor_final_v4"
         )
         
         ids_del = df_datos.iloc[res_edicion[res_edicion["Seleccionar"] == True].index]["id"].tolist()
@@ -266,6 +264,13 @@ if not df_datos.empty:
                 eliminar_registros(ids_del)
                 st.rerun()
         with c_exp:
-            st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
+            # CORRECCIÓN DE EXPORTACIÓN: se añade utf-8-sig para que Excel reconozca los acentos y la Ñ
+            csv_data = df_datos.to_csv(index=False).encode('utf-8-sig')
+            st.download_button(
+                label="📥 Exportar Matriz Completa (CSV)",
+                data=csv_data,
+                file_name="OTIF_Matrix_2026.csv",
+                mime='text/csv'
+            )
 else:
     st.info("No hay registros en la base de datos.")
