@@ -85,12 +85,13 @@ def clean_numeric(value):
 # --- INTERFAZ ---
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
-with st.expander("➕ Registrar Nuevo Proyecto / Avance", expanded=True):
+with st.expander("➕ Nuevo Registo de Proyecto", expanded=True):
     c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-    with c1: nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
     with c2: tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
     with c3: dir_s = st.selectbox("Director", options=CONFIG_TRENES[tren_t]["directores"])
     with c4: rte_s = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_t]["rtes"])
+    with c1: nombre_p = st.text_input("Nombre del Proyecto")
+
 
     c5, c6, c7, c8 = st.columns(4)
     with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
