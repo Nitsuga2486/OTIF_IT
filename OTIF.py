@@ -51,13 +51,20 @@ def conectar_db(): return sqlite3.connect('otif_it_data.db')
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
+    # Crear si no existe
     c.execute('''CREATE TABLE IF NOT EXISTS proyectos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
                   fecha_plan TEXT, fecha_real TEXT, on_time TEXT, in_full TEXT,
                   capex_aprob REAL, capex_ejec REAL, pct_budget TEXT, on_budget TEXT,
-                  otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT,
-                  estatus TEXT)''')
+                  otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT)''')
+    
+    # PARCHE DE SEGURIDAD: Verificar si falta la columna 'estatus' y agregarla si es necesario
+    c.execute("PRAGMA table_info(proyectos)")
+    columnas = [info[1] for info in c.fetchall()]
+    if 'estatus' not in columnas:
+        c.execute("ALTER TABLE proyectos ADD COLUMN estatus TEXT DEFAULT 'Sin Estatus'")
+    
     conn.commit()
     conn.close()
 
@@ -119,7 +126,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
         
-        # Fecha Real ahora con checkbox opcional
         tiene_fecha_real = st.checkbox("¿Ya cuenta con fecha real de salida?")
         with c6: 
             f_r = st.date_input("Fecha Real / Estimada", format="DD/MM/YYYY", disabled=not tiene_fecha_real)
@@ -140,7 +146,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
         with f4: t_oe = st.text_input("Ejecutado OPX", value="0.00")
 
         if st.form_submit_button("💾 Guardar Proyecto"):
-            # Quitamos f_r de la validación obligatoria
             if "Seleccionar" in [tren_t, dir_s, rte_s, ot_manual, in_f_sel, est_sel] or not nombre_p.strip():
                 st.error("⚠️ Completa todos los campos obligatorios.")
             else:
@@ -148,17 +153,12 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
                 t_aprob, t_ejec = ca + oa, ce + oe
                 on_b = "SÍ" if t_ejec <= t_aprob else "NO"
                 
-                # Definir Fecha Real y Mes de Salida
-                f_real_val = f_r if tiene_fecha_real else "Pendiente"
+                f_real_val = str(f_r) if tiene_fecha_real else "Pendiente"
                 mes_val = MESES[f_r.month] if tiene_fecha_real else "Por Definir"
 
-                # Lógica OTIF
-                if in_f_sel == "Sin avance": 
-                    otif_final = "Sin avance"
-                elif es_ppto_anterior or ca == 0.01: 
-                    otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ") else "NO"
-                else: 
-                    otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ" and on_b == "SÍ") else "NO"
+                if in_f_sel == "Sin avance": otif_final = "Sin avance"
+                elif es_ppto_anterior or ca == 0.01: otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ") else "NO"
+                else: otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ" and on_b == "SÍ") else "NO"
 
                 guardar_registro({
                     "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, 
