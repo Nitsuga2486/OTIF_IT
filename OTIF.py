@@ -1,5 +1,5 @@
 import streamlit as st
-import pandas as pd
+import pd
 import sqlite3
 import re
 from datetime import datetime
@@ -51,20 +51,13 @@ def conectar_db(): return sqlite3.connect('otif_it_data.db')
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
-    # Crear si no existe
     c.execute('''CREATE TABLE IF NOT EXISTS proyectos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
                   fecha_plan TEXT, fecha_real TEXT, on_time TEXT, in_full TEXT,
                   capex_aprob REAL, capex_ejec REAL, pct_budget TEXT, on_budget TEXT,
-                  otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT)''')
-    
-    # PARCHE DE SEGURIDAD: Verificar si falta la columna 'estatus' y agregarla si es necesario
-    c.execute("PRAGMA table_info(proyectos)")
-    columnas = [info[1] for info in c.fetchall()]
-    if 'estatus' not in columnas:
-        c.execute("ALTER TABLE proyectos ADD COLUMN estatus TEXT DEFAULT 'Sin Estatus'")
-    
+                  otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT,
+                  estatus TEXT)''')
     conn.commit()
     conn.close()
 
@@ -75,7 +68,7 @@ def guardar_registro(d):
                on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, otif_x_proyecto, 
                opex_aprob, opex_ejec, comentarios, estatus) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)"""
     c.execute(query, (d["tren_e2e"], d["director"], d["rte_nombre"], d["mes_salida"], str(d["fecha_plan"]), 
-                      str(d["fecha_real"]), d["on_time"], d["in_full"], d["capex_aprob"], d["capex_ejec"], 
+                      d["fecha_real"], d["on_time"], d["in_full"], d["capex_aprob"], d["capex_ejec"], 
                       d["pct_budget"], d["on_budget"], d["otif_x_proyecto"], d["opex_aprob"], d["opex_ejec"], 
                       d["comentarios"], d["estatus"]))
     conn.commit()
@@ -126,9 +119,9 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
         
-        tiene_fecha_real = st.checkbox("¿Ya cuenta con fecha real de salida?")
+        # Fecha Real como texto opcional para evitar el bloqueo del calendario
         with c6: 
-            f_r = st.date_input("Fecha Real / Estimada", format="DD/MM/YYYY", disabled=not tiene_fecha_real)
+            f_r_input = st.text_input("Fecha Real (DD/MM/YYYY)", placeholder="Dejar vacío si no ha salido")
         
         with c7: ot_manual = st.selectbox("On Time", ["Seleccionar", "SÍ", "NO"])
         with c8: in_f_sel = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
@@ -147,22 +140,30 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
 
         if st.form_submit_button("💾 Guardar Proyecto"):
             if "Seleccionar" in [tren_t, dir_s, rte_s, ot_manual, in_f_sel, est_sel] or not nombre_p.strip():
-                st.error("⚠️ Completa todos los campos obligatorios.")
+                st.error("⚠️ Completa los campos obligatorios.")
             else:
                 ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
                 t_aprob, t_ejec = ca + oa, ce + oe
                 on_b = "SÍ" if t_ejec <= t_aprob else "NO"
                 
-                f_real_val = str(f_r) if tiene_fecha_real else "Pendiente"
-                mes_val = MESES[f_r.month] if tiene_fecha_real else "Por Definir"
+                # Procesar Fecha Real y Mes
+                f_real_final = f_r_input.strip() if f_r_input.strip() else ""
+                mes_final = ""
+                if f_real_final:
+                    try:
+                        temp_date = datetime.strptime(f_real_final, "%d/%m/%Y")
+                        mes_final = MESES[temp_date.month]
+                    except:
+                        mes_final = "Fecha Inválida"
 
+                # Lógica OTIF
                 if in_f_sel == "Sin avance": otif_final = "Sin avance"
                 elif es_ppto_anterior or ca == 0.01: otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ") else "NO"
                 else: otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ" and on_b == "SÍ") else "NO"
 
                 guardar_registro({
                     "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, 
-                    "mes_salida": mes_val, "fecha_plan": f_p, "fecha_real": f_real_val, 
+                    "mes_salida": mes_final, "fecha_plan": f_p, "fecha_real": f_real_final, 
                     "on_time": ot_manual, "in_full": in_f_sel, "capex_aprob": ca, 
                     "capex_ejec": ce, "pct_budget": f"{(t_ejec/t_aprob*100):.1f}%" if t_aprob > 0 else "0.0%", 
                     "on_budget": on_b, "otif_x_proyecto": otif_final, "opex_aprob": oa, 
@@ -170,7 +171,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
                 })
                 st.success("✅ Proyecto Registrado."); st.rerun()
 
-# --- PROCESAMIENTO DE RESUMEN ---
+# --- TABLEROS ---
 df_datos = cargar_datos()
 
 with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=True):
@@ -188,20 +189,12 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
             
             df_f = df_datos[mask_dir | mask_lid].drop_duplicates()
             if not df_f.empty:
-                filas.append({
-                    "Líder / Director": n, 
-                    "On Time (%)": (df_f["On Time"] == "SÍ").mean()*100, 
-                    "In Full (%)": (df_f["In Full"] == "SÍ").mean()*100, 
-                    "Total CAPEX": df_f["CAPEX Aprobado"].sum(), 
-                    "OTIF Global (%)": (df_f["OTIF X Proy"] == "SÍ").mean()*100
-                })
+                filas.append({"Líder / Director": n, "On Time (%)": (df_f["On Time"] == "SÍ").mean()*100, "In Full (%)": (df_f["In Full"] == "SÍ").mean()*100, "Total CAPEX": df_f["CAPEX Aprobado"].sum(), "OTIF Global (%)": (df_f["OTIF X Proy"] == "SÍ").mean()*100})
             else:
                 filas.append({"Líder / Director": n, "On Time (%)": 0, "In Full (%)": 0, "Total CAPEX": 0, "OTIF Global (%)": 0})
-        
         st.table(pd.DataFrame(filas).style.format({"On Time (%)": "{:.1f}%", "In Full (%)": "{:.1f}%", "Total CAPEX": "$ {:,.2f}", "OTIF Global (%)": "{:.1f}%"}))
     else: st.info("Sin datos.")
 
-# --- MATRIZ PRINCIPAL ---
 if not df_datos.empty:
     with st.expander("🗂️ Matriz Principal - Detalle", expanded=True):
         df_edit = df_datos.copy(); df_edit.insert(0, "Seleccionar", False)
@@ -213,7 +206,6 @@ if not df_datos.empty:
                                     "Estatus": st.column_config.SelectboxColumn(options=["Liberado", "Retrasado", "En Curso"])
                                 }, 
                                 use_container_width=True, hide_index=True, key="editor_vFinal_Manual")
-        
         ids_del = df_datos.iloc[res_ed[res_ed["Seleccionar"] == True].index]["id"].tolist()
         c1, c2 = st.columns([1, 5])
         with c1: 
