@@ -13,20 +13,26 @@ def conectar_db():
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
-    # Definimos exactamente 16 columnas de datos + 1 id autoincremental
-    c.execute('''CREATE TABLE IF NOT EXISTS proyectos
-                 (id INTEGER PRIMARY KEY AUTOINCREMENT,
-                  tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
-                  fecha_plan TEXT, fecha_real TEXT, on_time TEXT, in_full TEXT,
-                  capex_aprob REAL, capex_ejec REAL, pct_budget TEXT, on_budget TEXT,
-                  otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT)''')
+    # TRUCO DE IT: Si la tabla existe pero da error, la reiniciamos para que coincida con el código nuevo
+    try:
+        # Intentamos insertar un registro vacío solo para ver si la estructura es la correcta
+        c.execute("SELECT id, tren_e2e, otif_x_proyecto FROM proyectos LIMIT 1")
+    except:
+        # Si falla, borramos la tabla vieja y creamos la nueva con los 17 campos (id + 16 datos)
+        c.execute("DROP TABLE IF EXISTS proyectos")
+        c.execute('''CREATE TABLE proyectos
+                     (id INTEGER PRIMARY KEY AUTOINCREMENT,
+                      tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
+                      fecha_plan TEXT, fecha_real TEXT, on_time TEXT, in_full TEXT,
+                      capex_aprob REAL, capex_ejec REAL, pct_budget TEXT, on_budget TEXT,
+                      otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT)''')
     conn.commit()
     conn.close()
 
 def guardar_registro(d):
     conn = conectar_db()
     c = conn.cursor()
-    # La consulta debe tener exactamente 16 signos de interrogación (uno por cada columna menos el ID)
+    # 16 signos de interrogación para las 16 columnas de datos
     query = '''INSERT INTO proyectos 
                (tren_e2e, director, rte_nombre, mes_salida, fecha_plan, fecha_real, 
                 on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, 
@@ -129,7 +135,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     if st.button("💾 Guardar Proyecto"):
         ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
         t_aprob, t_ejec = ca + oa, ce + oe
-        
         on_b = "SÍ" if t_ejec <= t_aprob else "NO"
         pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
         ot = "SÍ" if f_r <= f_p else "NO"
@@ -142,7 +147,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
 
         mes = meses_espanol[f_r.month]
-        
         datos = {
             "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, "mes_salida": mes,
             "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f,
@@ -183,7 +187,7 @@ if not df_datos.empty:
             "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_v5"
+        use_container_width=True, hide_index=True, key="main_editor_final_v1"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
