@@ -10,22 +10,22 @@ st.markdown("---")
 # 1. DEFINICIÓN DE LA ESTRUCTURA (16 COLUMNAS)
 # Creamos un DataFrame vacío o con una fila de ejemplo para mostrar los nombres exactos
 columnas = [
-    "1 Tren E2E",
-    "2 Director",
-    "3 RTE Nombre",
-    "4 Mes de Salida",
-    "5 Fecha Planeada",
-    "6 Fecha Real",
-    "7 On Time",
-    "8 In Full",
-    "9 CAPEX Aprobado por Finanzas",
-    "10 Ejecutado CAPEX",
-    "11 % Budget",
-    "12 On Budget",
-    "13 OTIF X Proyecto",
-    "14 OPEX Aprobado por Finanzas",
-    "15 Ejecutado OPEX",
-    "16 Comentarios"
+    "Tren E2E",
+    "Director",
+    "RTE Nombre",
+    "Mes de Salida",
+    "Fecha Planeada",
+    "Fecha Real",
+    "On Time",
+    "In Full",
+    "CAPEX Aprobado por Finanzas",
+    "Ejecutado CAPEX",
+    "% Budget",
+    "On Budget",
+    "OTIF X Proyecto",
+    "OPEX Aprobado por Finanzas",
+    "Ejecutado OPEX",
+    "Comentarios"
 ]
 
 # Creamos un DataFrame de ejemplo vacío con la estructura solicitada
