@@ -58,6 +58,7 @@ def crear_tabla():
                   capex_aprob REAL, capex_ejec REAL, pct_budget TEXT, on_budget TEXT,
                   otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT,
                   estatus TEXT)''')
+    # Parche por si la columna estatus no existe en el archivo local
     c.execute("PRAGMA table_info(proyectos)")
     columnas = [info[1] for info in c.fetchall()]
     if 'estatus' not in columnas:
@@ -86,7 +87,7 @@ def cargar_datos():
             df.rename(columns={"tren_e2e": "Tren E2E", "director": "Director", "rte_nombre": "RTE Nombre", 
                                "on_time": "On Time", "in_full": "In Full", "capex_aprob": "CAPEX Aprobado", 
                                "otif_x_proyecto": "OTIF X Proy", "estatus": "Estatus"}, inplace=True)
-            for col in ["CAPEX Aprobado", "Ejecutado CPX", "OPEX Aprobado", "Ejecutado OPX"]:
+            for col in ["CAPEX Aprobado", "capex_ejec", "opex_aprob", "opex_ejec"]:
                 if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
     except: df = pd.DataFrame()
     finally: conn.close()
@@ -122,7 +123,10 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
-        with c6: f_r_input = st.text_input("Fecha Real (DD/MM/YYYY)", placeholder="Opcional")
+        
+        with c6: 
+            f_r_input = st.text_input("Fecha Real (DD/MM/YYYY)", placeholder="Opcional")
+        
         with c7: ot_manual = st.selectbox("On Time", ["Seleccionar", "SÍ", "NO"])
         with c8: in_f_sel = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
 
@@ -146,21 +150,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
                 t_aprob, t_ejec = ca + oa, ce + oe
                 on_b = "SÍ" if t_ejec <= t_aprob else "NO"
                 
-                # --- LÓGICA DE EXCEL: OTIF X PROYECTO ---
-                val_ot = 1 if ot_manual == "SÍ" else 0
-                val_if = 1 if in_f_sel == "SÍ" else 0
-                val_ob = 1 if on_b == "SÍ" else 0
-                
-                # Si CAPEX <= 0.01: Promedio(OT, IF)
-                if ca <= 0.01:
-                    otif_num = (val_ot + val_if) / 2
-                # Si CAPEX > 0.01: Promedio(OT, IF, OB)
-                else:
-                    otif_num = (val_ot + val_if + val_ob) / 3
-                
-                otif_label = f"{otif_num * 100:.1f}%"
-                if in_f_sel == "Sin avance": otif_label = "Sin avance"
-
                 f_real_final = f_r_input.strip() if f_r_input.strip() else ""
                 mes_final = ""
                 if f_real_final:
@@ -170,17 +159,21 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
                     except:
                         mes_final = "Pendiente"
 
+                if in_f_sel == "Sin avance": otif_final = "Sin avance"
+                elif es_ppto_anterior or ca == 0.01: otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ") else "NO"
+                else: otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ" and on_b == "SÍ") else "NO"
+
                 guardar_registro({
                     "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, 
                     "mes_salida": mes_final, "fecha_plan": f_p, "fecha_real": f_real_final, 
                     "on_time": ot_manual, "in_full": in_f_sel, "capex_aprob": ca, 
                     "capex_ejec": ce, "pct_budget": f"{(t_ejec/t_aprob*100):.1f}%" if t_aprob > 0 else "0.0%", 
-                    "on_budget": on_b, "otif_x_proyecto": otif_label, "opex_aprob": oa, 
+                    "on_budget": on_b, "otif_x_proyecto": otif_final, "opex_aprob": oa, 
                     "opex_ejec": oe, "comentarios": com, "estatus": est_sel
                 })
                 st.success("✅ Proyecto Registrado."); st.rerun()
 
-# --- PROCESAMIENTO DE RESUMEN ---
+# --- PROCESAMIENTO DE RESUMEN (DOBLE CONTABILIZACIÓN) ---
 df_datos = cargar_datos()
 
 with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=True):
@@ -200,25 +193,18 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
             
             df_f = df_datos[mask_dir | mask_lid].drop_duplicates()
             if not df_f.empty:
-                # Calculamos el promedio de los valores numéricos de OTIF X Proy
-                def get_num(val):
-                    try: return float(val.replace('%','')) / 100
-                    except: return 0.0
-                
-                otif_promedio = df_f[df_f["OTIF X Proy"] != "Sin avance"]["OTIF X Proy"].apply(get_num).mean() * 100
-                
                 filas.append({
                     "Líder / Director": n, 
                     "On Time (%)": (df_f["On Time"] == "SÍ").mean()*100, 
                     "In Full (%)": (df_f["In Full"] == "SÍ").mean()*100, 
                     "Total CAPEX": df_f["CAPEX Aprobado"].sum(), 
-                    "OTIF Global (%)": otif_promedio
+                    "OTIF Global (%)": (df_f["OTIF X Proy"] == "SÍ").mean()*100
                 })
             else:
                 filas.append({"Líder / Director": n, "On Time (%)": 0, "In Full (%)": 0, "Total CAPEX": 0, "OTIF Global (%)": 0})
         
         st.table(pd.DataFrame(filas).style.format({"On Time (%)": "{:.1f}%", "In Full (%)": "{:.1f}%", "Total CAPEX": "$ {:,.2f}", "OTIF Global (%)": "{:.1f}%"}))
-    else: st.info("Sin datos.")
+    else: st.info("Sin datos registrados.")
 
 # --- MATRIZ PRINCIPAL ---
 if not df_datos.empty:
@@ -231,7 +217,7 @@ if not df_datos.empty:
                                     "In Full": st.column_config.SelectboxColumn(options=["Sin avance", "SÍ", "NO"]),
                                     "Estatus": st.column_config.SelectboxColumn(options=["Liberado", "Retrasado", "En Curso"])
                                 }, 
-                                use_container_width=True, hide_index=True, key="editor_vFinal_v7")
+                                use_container_width=True, hide_index=True, key="editor_vFinal_Manual")
         
         ids_del = df_datos.iloc[res_ed[res_ed["Seleccionar"] == True].index]["id"].tolist()
         c1, c2 = st.columns([1, 5])
