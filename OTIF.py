@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import re
+import io
 from datetime import datetime
 
 # 1. CONFIGURACIÓN DE PÁGINA
@@ -88,6 +89,24 @@ def cargar_datos():
                                "otif_x_proyecto": "OTIF X Proy", "estatus": "Estatus"}, inplace=True)
             for col in ["CAPEX Aprobado", "capex_ejec", "opex_aprob", "opex_ejec"]:
                 if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
+            
+            # RECALCULAR REGISTROS ANTIGUOS (Convertir SÍ/NO a porcentaje)
+            def recalcular_otif_historico(row):
+                if row["In Full"] == "Sin avance": return "Sin avance"
+                if isinstance(row["OTIF X Proy"], str) and "%" in row["OTIF X Proy"]: return row["OTIF X Proy"]
+                
+                val_ot = 1.0 if row["On Time"] == "SÍ" else 0.0
+                val_if = 1.0 if row["In Full"] == "SÍ" else 0.0
+                val_ob = 1.0 if row["on_budget"] == "SÍ" else 0.0
+                ca = float(row["CAPEX Aprobado"]) if pd.notna(row["CAPEX Aprobado"]) else 0.0
+                
+                if ca <= 0.01:
+                    return f"{((val_ot + val_if) / 2) * 100:.1f}%"
+                else:
+                    return f"{((val_ot + val_if + val_ob) / 3) * 100:.1f}%"
+            
+            df["OTIF X Proy"] = df.apply(recalcular_otif_historico, axis=1)
+
     except: df = pd.DataFrame()
     finally: conn.close()
     return df
@@ -122,10 +141,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
-        
-        with c6: 
-            f_r_input = st.text_input("Fecha Real (DD/MM/YYYY)", placeholder="Opcional")
-        
+        with c6: f_r_input = st.text_input("Fecha Real (DD/MM/YYYY)", placeholder="Opcional")
         with c7: ot_manual = st.selectbox("On Time", ["Seleccionar", "SÍ", "NO"])
         with c8: in_f_sel = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
 
@@ -158,11 +174,9 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
                     except:
                         mes_final = "Pendiente"
 
-                # --- LÓGICA PORCENTUAL OTIF X PROYECTO ---
                 if in_f_sel == "Sin avance": 
                     otif_final = "Sin avance"
                 else:
-                    # Asignación de valores (SÍ = 1.0, NO = 0.0)
                     val_ot = 1.0 if ot_manual == "SÍ" else 0.0
                     val_if = 1.0 if in_f_sel == "SÍ" else 0.0
                     val_ob = 1.0 if on_b == "SÍ" else 0.0
@@ -184,16 +198,19 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
                 })
                 st.success("✅ Proyecto Registrado."); st.rerun()
 
-# --- PROCESAMIENTO DE RESUMEN (DOBLE CONTABILIZACIÓN) ---
+# --- PROCESAMIENTO DE RESUMEN ---
 df_datos = cargar_datos()
 
 with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=True):
     if not df_datos.empty:
         dir_bd = df_datos["Director"].unique().tolist()
         dir_conf = [d for t in CONFIG_TRENES.values() for d in t["directores"]]
-        nombres_maestra = sorted(list(set(dir_bd + dir_conf + list(ESTRUCTURA_REPORTES.keys()))))
         
-        # Función para limpiar el porcentaje de "OTIF X Proy" y convertirlo a número
+        # Ocultar las identidades invertidas para evitar duplicados visuales
+        nombres_a_excluir = ["Miranda Vanessa", "Baltodano Karla", "Mares Mireya"]
+        nombres_maestra = sorted(list(set(dir_bd + dir_conf + list(ESTRUCTURA_REPORTES.keys()))))
+        nombres_maestra = [n for n in nombres_maestra if n not in nombres_a_excluir]
+        
         def limpiar_otif(val):
             if pd.isna(val) or val == "Sin avance": return None
             try: return float(str(val).replace('%', ''))
@@ -210,7 +227,6 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
             
             df_f = df_datos[mask_dir | mask_lid].drop_duplicates()
             if not df_f.empty:
-                # Extraemos los valores válidos de OTIF para promediarlos
                 valores_otif = df_f["OTIF X Proy"].apply(limpiar_otif).dropna()
                 promedio_otif_global = valores_otif.mean() if not valores_otif.empty else 0.0
                 
@@ -238,10 +254,23 @@ if not df_datos.empty:
                                     "In Full": st.column_config.SelectboxColumn(options=["Sin avance", "SÍ", "NO"]),
                                     "Estatus": st.column_config.SelectboxColumn(options=["Liberado", "Retrasado", "En Curso"])
                                 }, 
-                                use_container_width=True, hide_index=True, key="editor_vFinal_Manual")
+                                use_container_width=True, hide_index=True, key="editor_vFinal_v8")
         
         ids_del = df_datos.iloc[res_ed[res_ed["Seleccionar"] == True].index]["id"].tolist()
         c1, c2 = st.columns([1, 5])
         with c1: 
             if st.button(f"🗑️ Borrar ({len(ids_del)})", type="primary", disabled=len(ids_del)==0): eliminar_registros(ids_del); st.rerun()
-        with c2: st.download_button("📥 Exportar CSV", df_datos.to_csv(index=False).encode('utf-8-sig'), "OTIF_Matrix_2026.csv", "text/csv")
+        
+        with c2:
+            # EXPORTAR DIRECTO A EXCEL PARA EVITAR PROBLEMAS DE CODIFICACIÓN EN MAC
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
+                df_datos.to_excel(writer, index=False, sheet_name='Matriz_OTIF')
+            excel_data = output.getvalue()
+            
+            st.download_button(
+                label="📥 Exportar a Excel (.xlsx)", 
+                data=excel_data, 
+                file_name="OTIF_Matrix_2026.xlsx", 
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
