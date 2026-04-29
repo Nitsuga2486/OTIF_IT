@@ -132,9 +132,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
         with c6: f_r = st.date_input("Fecha Real", format="DD/MM/YYYY")
-        with c7: 
-            # Ajuste: Opción 'Seleccionar' por default y stopper
-            in_f = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
+        with c7: in_f_sel = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
         with c8: com = st.text_input("Comentarios")
 
         st.markdown("### Finanzas")
@@ -147,16 +145,15 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         with f4: t_oe = st.text_input("Ejecutado OPX", value="0.00")
 
         if st.form_submit_button("💾 Guardar Proyecto"):
-            # --- VALIDACIÓN CRÍTICA ACTUALIZADA ---
             errores = []
             if tren_t == "Seleccionar": errores.append("Tren")
             if dir_s == "Seleccionar": errores.append("Director")
             if rte_s == "Seleccionar": errores.append("RTE")
-            if in_f == "Seleccionar": errores.append("In Full")
+            if in_f_sel == "Seleccionar": errores.append("In Full")
             if not nombre_p.strip(): errores.append("Nombre del Proyecto")
 
             if errores:
-                st.error(f"⚠️ No se puede guardar. Faltan los siguientes campos: {', '.join(errores)}")
+                st.error(f"⚠️ No se puede guardar. Faltan: {', '.join(errores)}")
             else:
                 ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
                 t_aprob, t_ejec = ca + oa, ce + oe
@@ -165,38 +162,59 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
                 pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
                 ot = "SÍ" if f_r <= f_p else "NO"
 
-                if in_f == "Sin avance":
+                if in_f_sel == "Sin avance":
                     otif_final = "Sin avance"
                 elif es_ppto_anterior or ca == 0.01: 
-                    otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
+                    otif_final = "SÍ" if (ot == "SÍ" and in_f_sel == "SÍ") else "NO"
                 else:
-                    otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
+                    otif_final = "SÍ" if (ot == "SÍ" and in_f_sel == "SÍ" and on_b == "SÍ") else "NO"
 
                 mes = meses_espanol[f_r.month]
                 datos = {
                     "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, "mes_salida": mes,
-                    "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f,
+                    "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f_sel,
                     "capex_aprob": ca, "capex_ejec": ce, "pct_budget": pct_b, "on_budget": on_b,
                     "otif_x_proyecto": otif_final, "opex_aprob": oa, "opex_ejec": oe, "comentarios": com
                 }
                 guardar_registro(datos)
-                st.success(f"✅ Proyecto {nombre_p} registrado con éxito.")
+                st.success(f"✅ Proyecto {nombre_p} registrado.")
                 st.rerun()
 
 # --- DATOS CARGADOS ---
 df_datos = cargar_datos()
 
 if not df_datos.empty:
+    # SECCIÓN 2: RESUMEN DE CUMPLIMIENTO EXPANDIDO
     with st.expander("📈 Resumen de Cumplimiento por Director", expanded=False):
-        if "OTIF X Proy" in df_datos.columns:
-            df_validos = df_datos[df_datos["OTIF X Proy"].isin(["SÍ", "NO"])].copy()
-            if not df_validos.empty:
-                df_validos["Puntos"] = df_validos["OTIF X Proy"].map({"SÍ": 1, "NO": 0})
-                resumen = df_validos.groupby("Director")["Puntos"].mean() * 100
-                resumen_df = resumen.reset_index()
-                resumen_df.columns = ["Director", "% OTIF Global"]
-                st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
+        df_res = df_datos.copy()
+        
+        # Mapeo de puntos para promedios
+        df_res["p_ot"] = df_res["On Time"].map({"SÍ": 1, "NO": 0})
+        df_res["p_if"] = df_res["In Full"].map({"SÍ": 1, "NO": 0})
+        df_res["p_otif"] = df_res["OTIF X Proy"].map({"SÍ": 1, "NO": 0})
+        
+        # Agrupación
+        resumen = df_res.groupby("Director").agg({
+            "p_ot": "mean",
+            "p_if": "mean",
+            "CAPEX Aprobado": "sum",
+            "p_otif": "mean"
+        }).reset_index()
+        
+        # Formateo de columnas
+        resumen.columns = ["Director", "On Time (%)", "In Full (%)", "Total CAPEX", "OTIF Global (%)"]
+        resumen["On Time (%)"] *= 100
+        resumen["In Full (%)"] *= 100
+        resumen["OTIF Global (%)"] *= 100
+        
+        st.table(resumen.style.format({
+            "On Time (%)": "{:.1f}%",
+            "In Full (%)": "{:.1f}%",
+            "Total CAPEX": "$ {:,.2f}",
+            "OTIF Global (%)": "{:.1f}%"
+        }))
 
+    # SECCIÓN 3: MATRIZ PRINCIPAL
     with st.expander("🗂️ Matriz Principal - Detalle de Proyectos", expanded=True):
         df_con_check = df_datos.copy()
         df_con_check.insert(0, "Seleccionar", False)
@@ -211,7 +229,7 @@ if not df_datos.empty:
                 "Ejecutado OPX": st.column_config.NumberColumn(format="$ %,.2f"),
             },
             disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-            use_container_width=True, hide_index=True, key="main_editor_v15"
+            use_container_width=True, hide_index=True, key="main_editor_v16"
         )
 
         filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
