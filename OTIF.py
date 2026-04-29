@@ -74,7 +74,7 @@ def eliminar_registros(ids):
 
 crear_tabla()
 
-# --- CONFIGURACIÓN DE NEGOCIO (REGLAS DE TRENES) ---
+# --- CONFIGURACIÓN DE NEGOCIO ---
 CONFIG_TRENES = {
     "Comercial": {"directores": ["Ortiz de Montellanos Enrique"], "rtes": ["Hernandez Consuelo", "Mares Mireya"]},
     "eCommerce": {"directores": ["Muñoz Julio"], "rtes": ["Baltodano Karla"]},
@@ -108,22 +108,24 @@ def clean_numeric(value):
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
 with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
-    with st.form("registro_proyecto", clear_on_submit=True):
-        # Fila 1: Reglas de asignación
-        c_tren, c_dir, c_rte = st.columns(3)
-        with c_tren:
-            tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
-        with c_dir:
-            # Asegura que el director pertenezca al tren seleccionado
-            dir_s = st.selectbox("Director", options=CONFIG_TRENES[tren_t]["directores"])
-        with c_rte:
-            # Asegura que el RTE pertenezca al tren seleccionado
-            rte_s = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_t]["rtes"])
-        
-        # Fila 2: Nombre del proyecto
-        nombre_p = st.text_input("Nombre del Proyecto")
+    # FUERA del form ponemos los selectores dependientes para que refresquen en tiempo real
+    c_tren, c_dir, c_rte = st.columns(3)
+    with c_tren:
+        tren_t = st.selectbox("1. Selecciona Tren", options=list(CONFIG_TRENES.keys()), key="sel_tren")
+    
+    # Extraemos las opciones basadas en el tren seleccionado
+    opciones_directores = CONFIG_TRENES[tren_t]["directores"]
+    opciones_rtes = CONFIG_TRENES[tren_t]["rtes"]
 
-        # Fila 3: Tiempos y Calidad
+    with c_dir:
+        dir_s = st.selectbox("2. Director Responsable", options=opciones_directores, key="sel_dir")
+    with c_rte:
+        rte_s = st.selectbox("3. RTE asignado", options=opciones_rtes, key="sel_rte")
+
+    # Ahora sí, el resto de los datos en el Form
+    with st.form("registro_proyecto", clear_on_submit=True):
+        nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
+
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
         with c6: f_r = st.date_input("Fecha Real", format="DD/MM/YYYY")
@@ -139,13 +141,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
         with f4: t_oe = st.text_input("Ejecutado OPEX", value="0.00")
 
-        c_btn1, c_btn2, _ = st.columns([1, 1, 4])
-        with c_btn1:
-            submit = st.form_submit_button("💾 Guardar")
-        with c_btn2:
-            limpiar = st.form_submit_button("🧹 Limpiar")
-
-        if submit:
+        if st.form_submit_button("💾 Guardar Proyecto"):
             ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
             t_aprob, t_ejec = ca + oa, ce + oe
             
@@ -153,7 +149,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
             ot = "SÍ" if f_r <= f_p else "NO"
 
-            # Lógica de detección interna para Regla del Centavo
             if in_f == "Sin avance":
                 otif_final = "Sin avance"
             elif es_ppto_anterior or ca == 0.01: 
@@ -198,11 +193,9 @@ if not df_datos.empty:
             "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
             "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
             "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
-            "Fecha Planeada": st.column_config.DateColumn(format="DD/MM/YYYY"),
-            "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_v8"
+        use_container_width=True, hide_index=True, key="main_editor_v9"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
