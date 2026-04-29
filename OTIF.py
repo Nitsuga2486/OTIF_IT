@@ -85,18 +85,17 @@ def clean_numeric(value):
 # --- INTERFAZ ---
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
-with st.expander("➕ Nuevo Registo de Proyecto", expanded=True):
+with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     c2, c3, c4, c1 = st.columns([1, 1, 1, 2])
     with c2: tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
     with c3: dir_s = st.selectbox("Director", options=CONFIG_TRENES[tren_t]["directores"])
     with c4: rte_s = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_t]["rtes"])
     with c1: nombre_p = st.text_input("Nombre del Proyecto")
 
-
     c5, c6, c7, c8 = st.columns(4)
     with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
     with c6: f_r = st.date_input("Fecha Real (Dejar hoy si no ha terminado)", format="DD/MM/YYYY")
-    with c7: in_f = st.selectbox("In Full", ["SÍ", "NO"])
+    with c7: in_f = st.selectbox("In Full", ["Sin avance", "SÍ", "NO"]) # Se agregó "Sin avance" para que coincida con la lógica
     with c8: com = st.text_input("Comentarios")
 
     st.markdown("### Finanzas")
@@ -109,19 +108,16 @@ with st.expander("➕ Nuevo Registo de Proyecto", expanded=True):
     if st.button("💾 Guardar Proyecto"):
         ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
         
-        # 1. Regla del Tope de Presupuesto
         t_aprob = ca + oa
         t_ejec = ce + oe
         on_b = "SÍ" if t_ejec <= t_aprob else "NO"
         pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
-
-        # 2. On Time
         ot = "SÍ" if f_r <= f_p else "NO"
 
-        # 3. Lógica OTIF (Regla del Centavo y Manejo de Vacíos)
-        if in_f == "Esperando...":
+        # Lógica OTIF con Regla del Centavo y Vacíos
+        if in_f == "Sin avance":
             otif_final = "Sin avance"
-        elif ca == 0.01: # Regla del Centavo (Proyectos 2025)
+        elif ca == 0.01:
             otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
         else:
             otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
@@ -139,10 +135,21 @@ with st.expander("➕ Nuevo Registo de Proyecto", expanded=True):
         st.rerun()
 
 # --- TABLERO ---
-st.subheader("Matriz Principal (Detalle por Proyecto)")
 df_datos = cargar_datos()
 
 if not df_datos.empty:
+    # 4. TABLA RESUMEN (Punto 4 del Manual)
+    st.subheader("📈 Resumen de Cumplimiento por Director")
+    # Filtramos solo proyectos con OTIF calificado
+    df_validos = df_datos[df_datos["OTIF X Proyecto"].isin(["SÍ", "NO"])].copy()
+    if not df_validos.empty:
+        df_validos["Puntos"] = df_validos["OTIF X Proyecto"].map({"SÍ": 1, "NO": 0})
+        resumen = df_validos.groupby("Director")["Puntos"].mean() * 100
+        resumen_df = resumen.reset_index()
+        resumen_df.columns = ["Director", "% OTIF Global"]
+        st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
+    
+    st.subheader("Matriz Principal (Detalle por Proyecto)")
     df_con_check = df_datos.copy()
     df_con_check.insert(0, "Seleccionar", False)
     
@@ -154,7 +161,7 @@ if not df_datos.empty:
             "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
             "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
             "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
-            "OTIF X Proyecto": st.column_config.TextColumn("OTIF Final", help="Calculado con Regla del Centavo si Aprobado = 0.01")
+            "OTIF X Proyecto": st.column_config.TextColumn("OTIF Final")
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
         use_container_width=True, hide_index=True, key="editor_manual_rules"
