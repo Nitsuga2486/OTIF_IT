@@ -7,8 +7,7 @@ st.set_page_config(page_title="Estructura OTIF IT", layout="wide")
 st.title("📊 Estructura de Seguimiento OTIF - Área IT")
 st.markdown("---")
 
-# 1. DEFINICIÓN DE LA ESTRUCTURA (16 COLUMNAS)
-# Creamos un DataFrame vacío o con una fila de ejemplo para mostrar los nombres exactos
+# 1. DEFINICIÓN DE LAS 16 COLUMNAS
 columnas = [
     "Tren E2E",
     "Director",
@@ -28,18 +27,34 @@ columnas = [
     "Comentarios"
 ]
 
-# Creamos un DataFrame de ejemplo vacío con la estructura solicitada
-df_estructura = pd.DataFrame(columns=columnas)
+# 2. OPCIONES PARA EL MENÚ DESPLEGABLE (Ahora en Tren E2E)
+opciones_tren = [
+    "Comercial", "eCommerce", "Finanzas", "IT", "Nuevos Negocios", 
+    "Off Price", "Omnicanalidad", "One AXO", "Operaciones", 
+    "Operación en Tienda", "Palanca de Valor", "Privalia", 
+    "Recursos Humanos", "Sudamérica", "Ulta"
+]
 
-# Agregamos una fila vacía para que la tabla sea visible en la web
-df_estructura.loc[0] = [""] * len(columnas)
+# Creamos un DataFrame inicial con 5 filas vacías
+df_estructura = pd.DataFrame([[""] * len(columnas)] * 5, columns=columnas)
 
-# 2. VISUALIZACIÓN EN STREAMLIT
-st.subheader("Layout de las 16 Columnas")
+# 3. VISUALIZACIÓN INTERACTIVA
+st.subheader("Layout de Seguimiento")
 
-# Mostramos la estructura
-st.dataframe(
-    df_estructura, 
-    use_container_width=True, 
-    hide_index=True
+# Configuramos la columna "Tren E2E" con el menú desplegable
+st.data_editor(
+    df_estructura,
+    column_config={
+        "Tren E2E": st.column_config.SelectboxColumn(
+            "Tren E2E",
+            help="Selecciona el Tren correspondiente",
+            options=opciones_tren,
+            required=True,
+        )
+    },
+    use_container_width=True,
+    hide_index=True,
+    num_rows="dynamic"  # Permite añadir filas con el botón "+" al final de la tabla
 )
+
+st.info("Estructura actualizada. El menú desplegable ahora se encuentra en la columna 'Tren E2E'.")
