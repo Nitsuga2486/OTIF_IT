@@ -6,6 +6,22 @@ import re
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OTIF 2026 - Control Portafolio", layout="wide")
 
+# --- ESTILOS CSS PARA CENTRADO Y ANCHO ---
+st.markdown("""
+    <style>
+    /* Centrar encabezados y celdas de métricas */
+    .stTable td:nth-child(n+2), .stTable th:nth-child(n+2) {
+        text-align: center !important;
+        width: 150px !important;
+    }
+    /* Alineación izquierda para la primera columna */
+    .stTable td:nth-child(1), .stTable th:nth-child(1) {
+        text-align: left !important;
+        width: 250px !important;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+
 # --- FUNCIONES DE PERSISTENCIA ---
 def conectar_db():
     return sqlite3.connect('otif_it_data.db')
@@ -177,16 +193,13 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
 # --- PROCESAMIENTO DE DATOS ---
 df_datos = cargar_datos()
 
-# SECCIÓN 2: VISTA DE LÍDERES (Con todos los directores)
+# SECCIÓN 2: VISTA DE LÍDERES
 with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=True):
-    # 1. Obtener todos los directores únicos de la configuración
     todos_los_directores = set()
     for tren in CONFIG_TRENES.values():
         todos_los_directores.update(tren["directores"])
     
-    # 2. Crear la lista maestra de líderes a mostrar
     maestra_lideres = sorted(list(todos_los_directores))
-    # Agregar líderes especiales si no están
     for especial in ["Karla Baltodano", "Mireya Mares", "Vanessa Miranda"]:
         if especial not in maestra_lideres:
             maestra_lideres.append(especial)
@@ -206,27 +219,26 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
         df_res["p_if"] = df_res["In Full"].map({"SÍ": 1, "NO": 0})
         df_res["p_otif"] = df_res["OTIF X Proy"].map({"SÍ": 1, "NO": 0})
         
-        resumen_calculado = df_res.groupby("Líder").agg({
-            "p_ot": "mean", "p_if": "mean", "CAPEX Aprobado": "sum", "p_otif": "mean", "id": "count"
+        res_calc = df_res.groupby("Líder").agg({
+            "p_ot": "mean", "p_if": "mean", "CAPEX Aprobado": "sum", "p_otif": "mean"
         }).reset_index()
     else:
-        resumen_calculado = pd.DataFrame(columns=["Líder", "p_ot", "p_if", "CAPEX Aprobado", "p_otif", "id"])
+        res_calc = pd.DataFrame(columns=["Líder", "p_ot", "p_if", "CAPEX Aprobado", "p_otif"])
 
-    # 3. Cruzar maestra con datos calculados para asegurar que aparezcan todos
     df_maestra = pd.DataFrame({"Líder": maestra_lideres})
-    resumen_final = pd.merge(df_maestra, resumen_calculado, on="Líder", how="left").fillna(0)
-
-    resumen_final.columns = ["Líder / Director", "On Time (%)", "In Full (%)", "Total CAPEX", "OTIF Global (%)", "Proyectos"]
+    resumen_final = pd.merge(df_maestra, res_calc, on="Líder", how="left").fillna(0)
     
-    # Formateo
+    # Quitar columna de conteo y renombrar
+    resumen_final.columns = ["Líder / Director", "On Time (%)", "In Full (%)", "Total CAPEX", "OTIF Global (%)"]
+    
     resumen_final["On Time (%)"] *= 100
     resumen_final["In Full (%)"] *= 100
     resumen_final["OTIF Global (%)"] *= 100
     
+    # Estilo de tabla centrado
     st.table(resumen_final.style.format({
         "On Time (%)": "{:.1f}%", "In Full (%)": "{:.1f}%",
-        "Total CAPEX": "$ {:,.2f}", "OTIF Global (%)": "{:.1f}%",
-        "Proyectos": "{:.0f}"
+        "Total CAPEX": "$ {:,.2f}", "OTIF Global (%)": "{:.1f}%"
     }))
 
 # SECCIÓN 3: MATRIZ PRINCIPAL
@@ -244,7 +256,7 @@ if not df_datos.empty:
                 "Ejecutado OPX": st.column_config.NumberColumn(format="$ %,.2f"),
             },
             disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-            use_container_width=True, hide_index=True, key="main_editor_final_v2"
+            use_container_width=True, hide_index=True, key="main_editor_final_v3"
         )
         
         ids_del = df_datos.iloc[res_edicion[res_edicion["Seleccionar"] == True].index]["id"].tolist()
