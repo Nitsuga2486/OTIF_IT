@@ -86,7 +86,7 @@ def clean_numeric(value):
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
 with st.expander("➕ Nuevo Registo de Proyecto", expanded=True):
-    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+    c2, c3, c4, c1 = st.columns([1, 1, 1, 2])
     with c2: tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
     with c3: dir_s = st.selectbox("Director", options=CONFIG_TRENES[tren_t]["directores"])
     with c4: rte_s = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_t]["rtes"])
