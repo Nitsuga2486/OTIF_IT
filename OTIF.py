@@ -2,6 +2,7 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import re
+from datetime import datetime
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OTIF 2026 - Control Portafolio", layout="wide")
@@ -116,10 +117,12 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
     with st.form("registro_proyecto", clear_on_submit=True):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
         c5, c6, c7, c8 = st.columns(4)
+        with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
         
-        # AJUSTE: Fechas vacías por defecto (None) para obligar selección
-        with c5: f_p = st.date_input("Fecha Planeada", value=None, format="DD/MM/YYYY")
-        with c6: f_r = st.date_input("Fecha Real / Estimada", value=None, format="DD/MM/YYYY")
+        # Fecha Real ahora con checkbox opcional
+        tiene_fecha_real = st.checkbox("¿Ya cuenta con fecha real de salida?")
+        with c6: 
+            f_r = st.date_input("Fecha Real / Estimada", format="DD/MM/YYYY", disabled=not tiene_fecha_real)
         
         with c7: ot_manual = st.selectbox("On Time", ["Seleccionar", "SÍ", "NO"])
         with c8: in_f_sel = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
@@ -137,14 +140,19 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
         with f4: t_oe = st.text_input("Ejecutado OPX", value="0.00")
 
         if st.form_submit_button("💾 Guardar Proyecto"):
-            # Validación estricta incluyendo que las fechas no sean None
-            if "Seleccionar" in [tren_t, dir_s, rte_s, ot_manual, in_f_sel, est_sel] or not nombre_p.strip() or f_p is None or f_r is None:
-                st.error("⚠️ Completa todos los campos obligatorios (incluyendo ambas fechas).")
+            # Quitamos f_r de la validación obligatoria
+            if "Seleccionar" in [tren_t, dir_s, rte_s, ot_manual, in_f_sel, est_sel] or not nombre_p.strip():
+                st.error("⚠️ Completa todos los campos obligatorios.")
             else:
                 ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
                 t_aprob, t_ejec = ca + oa, ce + oe
                 on_b = "SÍ" if t_ejec <= t_aprob else "NO"
                 
+                # Definir Fecha Real y Mes de Salida
+                f_real_val = f_r if tiene_fecha_real else "Pendiente"
+                mes_val = MESES[f_r.month] if tiene_fecha_real else "Por Definir"
+
+                # Lógica OTIF
                 if in_f_sel == "Sin avance": 
                     otif_final = "Sin avance"
                 elif es_ppto_anterior or ca == 0.01: 
@@ -154,7 +162,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
 
                 guardar_registro({
                     "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, 
-                    "mes_salida": MESES[f_r.month], "fecha_plan": f_p, "fecha_real": f_r, 
+                    "mes_salida": mes_val, "fecha_plan": f_p, "fecha_real": f_real_val, 
                     "on_time": ot_manual, "in_full": in_f_sel, "capex_aprob": ca, 
                     "capex_ejec": ce, "pct_budget": f"{(t_ejec/t_aprob*100):.1f}%" if t_aprob > 0 else "0.0%", 
                     "on_budget": on_b, "otif_x_proyecto": otif_final, "opex_aprob": oa, 
