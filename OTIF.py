@@ -116,10 +116,11 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
     with st.form("registro_proyecto", clear_on_submit=True):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
         c5, c6, c7, c8 = st.columns(4)
-        with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
-        with c6: f_r = st.date_input("Fecha Real / Estimada", format="DD/MM/YYYY")
         
-        # NUEVA LÓGICA: On Time Manual
+        # AJUSTE: Fechas vacías por defecto (None) para obligar selección
+        with c5: f_p = st.date_input("Fecha Planeada", value=None, format="DD/MM/YYYY")
+        with c6: f_r = st.date_input("Fecha Real / Estimada", value=None, format="DD/MM/YYYY")
+        
         with c7: ot_manual = st.selectbox("On Time", ["Seleccionar", "SÍ", "NO"])
         with c8: in_f_sel = st.selectbox("In Full", ["Seleccionar", "Sin avance", "SÍ", "NO"])
 
@@ -136,14 +137,14 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
         with f4: t_oe = st.text_input("Ejecutado OPX", value="0.00")
 
         if st.form_submit_button("💾 Guardar Proyecto"):
-            if "Seleccionar" in [tren_t, dir_s, rte_s, ot_manual, in_f_sel, est_sel] or not nombre_p.strip():
-                st.error("⚠️ Completa todos los campos obligatorios.")
+            # Validación estricta incluyendo que las fechas no sean None
+            if "Seleccionar" in [tren_t, dir_s, rte_s, ot_manual, in_f_sel, est_sel] or not nombre_p.strip() or f_p is None or f_r is None:
+                st.error("⚠️ Completa todos los campos obligatorios (incluyendo ambas fechas).")
             else:
                 ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
                 t_aprob, t_ejec = ca + oa, ce + oe
                 on_b = "SÍ" if t_ejec <= t_aprob else "NO"
                 
-                # OTIF depende de tu selección manual de On Time
                 if in_f_sel == "Sin avance": 
                     otif_final = "Sin avance"
                 elif es_ppto_anterior or ca == 0.01: 
