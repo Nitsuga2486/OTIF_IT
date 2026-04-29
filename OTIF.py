@@ -6,14 +6,14 @@ import re
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OTIF 2026 Ongoing", layout="wide")
 
-# --- FUNCIONES DE PERSISTENCIA (SQLite) ---
+# --- FUNCIONES DE PERSISTENCIA ---
 def conectar_db():
+    # Nota: Si el error de KeyError persiste en la nube, cambia el nombre a 'otif_v4.db'
     return sqlite3.connect('otif_it_data.db')
 
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
-    # Usamos nombres técnicos en minúsculas para la DB (snake_case)
     c.execute('''CREATE TABLE IF NOT EXISTS proyectos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
@@ -29,12 +29,12 @@ def guardar_registro(d):
     query = '''INSERT INTO proyectos (tren_e2e, director, rte_nombre, mes_salida, fecha_plan, fecha_real, 
                on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, otif_x_proyecto, 
                opex_aprob, opex_ejec, comentarios) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'''
-    # Mapeamos las llaves del diccionario a la consulta
+    # IMPORTANTE: Los nombres aquí deben coincidir EXACTAMENTE con las llaves del diccionario 'datos'
     c.execute(query, (
-        d["Tren E2E"], d["Director"], d["RTE Nombre"], d["Mes de Salida"],
-        str(d["Fecha Planeada"]), str(d["Fecha Real"]), d["On Time"], d["In Full"],
-        d["CAPEX Aprobado"], d["Ejecutado CAPEX"], d["% Budget"], d["On Budget"],
-        d["OTIF X Proyecto"], d["OPEX Aprobado"], d["Ejecutado OPEX"], d["Comentarios"]
+        d["tren_e2e"], d["director"], d["rte_nombre"], d["mes_salida"],
+        str(d["fecha_plan"]), str(d["fecha_real"]), d["on_time"], d["in_full"],
+        d["capex_aprob"], d["capex_ejec"], d["pct_budget"], d["on_budget"],
+        d["otif_x_proyecto"], d["opex_aprob"], d["opex_ejec"], d["comentarios"]
     ))
     conn.commit()
     conn.close()
@@ -43,29 +43,17 @@ def cargar_datos():
     conn = conectar_db()
     try:
         df = pd.read_sql_query("SELECT * FROM proyectos", conn)
-        # MAPEO ESTRICTO: Convierte nombres de DB a nombres de Tablero
         column_map = {
-            "id": "id", 
-            "tren_e2e": "Tren E2E", 
-            "director": "Director", 
-            "rte_nombre": "RTE Nombre",
-            "mes_salida": "Mes de Salida", 
-            "fecha_plan": "Fecha Planeada", 
-            "fecha_real": "Fecha Real",
-            "on_time": "On Time", 
-            "in_full": "In Full", 
-            "capex_aprob": "CAPEX Aprobado",
-            "capex_ejec": "Ejecutado CAPEX", 
-            "pct_budget": "% Budget", 
-            "on_budget": "On Budget",
-            "otif_x_proyecto": "OTIF X Proyecto", 
-            "opex_aprob": "OPEX Aprobado",
-            "opex_ejec": "Ejecutado OPEX", 
-            "comentarios": "Comentarios"
+            "id": "id", "tren_e2e": "Tren E2E", "director": "Director", "rte_nombre": "RTE Nombre",
+            "mes_salida": "Mes de Salida", "fecha_plan": "Fecha Planeada", "fecha_real": "Fecha Real",
+            "on_time": "On Time", "in_full": "In Full", "capex_aprob": "CAPEX Aprobado",
+            "capex_ejec": "Ejecutado CAPEX", "pct_budget": "% Budget", "on_budget": "On Budget",
+            "otif_x_proyecto": "OTIF X Proyecto", "opex_aprob": "OPEX Aprobado",
+            "opex_ejec": "Ejecutado OPEX", "comentarios": "Comentarios"
         }
         if not df.empty:
             df.rename(columns=column_map, inplace=True)
-    except Exception:
+    except:
         df = pd.DataFrame()
     finally:
         conn.close()
@@ -136,6 +124,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     if st.button("💾 Guardar Proyecto"):
         ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
         t_aprob, t_ejec = ca + oa, ce + oe
+        
         on_b = "SÍ" if t_ejec <= t_aprob else "NO"
         pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
         ot = "SÍ" if f_r <= f_p else "NO"
@@ -148,11 +137,13 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
 
         mes = meses_espanol[f_r.month]
+        
+        # AQUÍ ESTABA EL ERROR: Las llaves deben coincidir con la función guardar_registro
         datos = {
-            "Tren E2E": nombre_p, "Director": dir_s, "RTE Nombre": rte_s, "Mes de Salida": mes,
-            "Fecha Planeada": f_p, "Fecha Real": f_r, "On Time": ot, "In Full": in_f,
-            "CAPEX Aprobado": ca, "Ejecutado CAPEX": ce, "% Budget": pct_b, "On Budget": on_b,
-            "OTIF X Proyecto": otif_final, "OPEX Aprobado": oa, "Ejecutado OPEX": oe, "Comentarios": com
+            "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, "mes_salida": mes,
+            "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f,
+            "capex_aprob": ca, "capex_ejec": ce, "pct_budget": pct_b, "on_budget": on_b,
+            "otif_x_proyecto": otif_final, "opex_aprob": oa, "opex_ejec": oe, "comentarios": com
         }
         guardar_registro(datos)
         st.success(f"Proyecto {nombre_p} registrado.")
@@ -162,7 +153,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
 df_datos = cargar_datos()
 
 if not df_datos.empty:
-    # 📈 RESUMEN (Aquí ocurría el error)
     if "OTIF X Proyecto" in df_datos.columns:
         st.subheader("📈 Resumen de Cumplimiento por Director")
         df_validos = df_datos[df_datos["OTIF X Proyecto"].isin(["SÍ", "NO"])].copy()
@@ -173,7 +163,6 @@ if not df_datos.empty:
             resumen_df.columns = ["Director", "% OTIF Global"]
             st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
     
-    # 🗂️ MATRIZ PRINCIPAL
     st.subheader("Matriz Principal (Detalle por Proyecto)")
     df_con_check = df_datos.copy()
     df_con_check.insert(0, "Seleccionar", False)
@@ -188,7 +177,7 @@ if not df_datos.empty:
             "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_v3"
+        use_container_width=True, hide_index=True, key="main_editor_v4"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
