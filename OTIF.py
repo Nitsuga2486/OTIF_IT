@@ -4,7 +4,7 @@ import sqlite3
 import re
 
 # 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="OTIF 2026 Ongoing", layout="wide")
+st.set_page_config(page_title="OTIF 2026 - Control Portafolio", layout="wide")
 
 # --- FUNCIONES DE PERSISTENCIA ---
 def conectar_db():
@@ -14,7 +14,7 @@ def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
     try:
-        c.execute("SELECT id, tren_e2e, otif_x_proyecto FROM proyectos LIMIT 1")
+        c.execute("SELECT id FROM proyectos LIMIT 1")
     except:
         c.execute("DROP TABLE IF EXISTS proyectos")
         c.execute('''CREATE TABLE proyectos
@@ -34,7 +34,6 @@ def guardar_registro(d):
                 on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, 
                 otif_x_proyecto, opex_aprob, opex_ejec, comentarios) 
                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'''
-    
     valores = (
         d["tren_e2e"], d["director"], d["rte_nombre"], d["mes_salida"],
         str(d["fecha_plan"]), str(d["fecha_real"]), d["on_time"], d["in_full"],
@@ -110,13 +109,11 @@ st.title("📊 Dashboard OTIF - Portafolio 2026")
 # SECCIÓN 1: NUEVO REGISTRO
 with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     c_tren, c_dir, c_rte = st.columns(3)
-    
     with c_tren:
         tren_t = st.selectbox("1. Selecciona Tren", options=["Seleccionar"] + list(CONFIG_TRENES.keys()), key="sel_tren")
     
     opciones_dir = ["Seleccionar"]
     opciones_rte = ["Seleccionar"]
-    
     if tren_t != "Seleccionar":
         opciones_dir += CONFIG_TRENES[tren_t]["directores"]
         opciones_rte += CONFIG_TRENES[tren_t]["rtes"]
@@ -128,7 +125,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
 
     with st.form("registro_proyecto", clear_on_submit=True):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
-
         c5, c6, c7, c8 = st.columns(4)
         with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
         with c6: f_r = st.date_input("Fecha Real", format="DD/MM/YYYY")
@@ -137,7 +133,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
 
         st.markdown("### Finanzas")
         es_ppto_anterior = st.checkbox("PPTO Año Anterior")
-        
         f1, f2, f3, f4 = st.columns(4)
         with f1: t_ca = st.text_input("CAPEX Aprobado", value="0.00")
         with f2: t_ce = st.text_input("Ejecutado CPX", value="0.00")
@@ -157,7 +152,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             else:
                 ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
                 t_aprob, t_ejec = ca + oa, ce + oe
-                
                 on_b = "SÍ" if t_ejec <= t_aprob else "NO"
                 pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
                 ot = "SÍ" if f_r <= f_p else "NO"
@@ -180,45 +174,44 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
                 st.success(f"✅ Proyecto {nombre_p} registrado.")
                 st.rerun()
 
-# --- DATOS CARGADOS ---
+# --- PROCESAMIENTO DE DATOS ---
 df_datos = cargar_datos()
 
 if not df_datos.empty:
-    # SECCIÓN 2: RESUMEN DE CUMPLIMIENTO EXPANDIDO
-    with st.expander("📈 Resumen de Cumplimiento por Director", expanded=False):
+    # SECCIÓN 2: VISTA DE LÍDERES
+    with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=False):
+        def asignar_lider(row):
+            d, r = row["Director"], row["RTE Nombre"]
+            if r in ["Baltodano Karla", "Navarrete Arantzasu", "Moreno Jorge"]: return "Karla Baltodano"
+            if r in ["Mares Mireya", "Franco Edith", "Hernandez Consuelo"]: return "Mireya Mares"
+            if d in ["Rojas Juan Manuel", "Diaz de Leon Lino"]: return "Vanessa Miranda"
+            if d == "Posada Evelyn": return "Evelyn Posada"
+            return d
+
         df_res = df_datos.copy()
-        
-        # Mapeo de puntos para promedios
+        df_res["Líder"] = df_res.apply(asignar_lider, axis=1)
         df_res["p_ot"] = df_res["On Time"].map({"SÍ": 1, "NO": 0})
         df_res["p_if"] = df_res["In Full"].map({"SÍ": 1, "NO": 0})
         df_res["p_otif"] = df_res["OTIF X Proy"].map({"SÍ": 1, "NO": 0})
         
-        # Agrupación
-        resumen = df_res.groupby("Director").agg({
-            "p_ot": "mean",
-            "p_if": "mean",
-            "CAPEX Aprobado": "sum",
-            "p_otif": "mean"
+        resumen = df_res.groupby("Líder").agg({
+            "p_ot": "mean", "p_if": "mean", "CAPEX Aprobado": "sum", "p_otif": "mean"
         }).reset_index()
         
-        # Formateo de columnas
-        resumen.columns = ["Director", "On Time (%)", "In Full (%)", "Total CAPEX", "OTIF Global (%)"]
+        resumen.columns = ["Líder / Director", "On Time (%)", "In Full (%)", "Total CAPEX", "OTIF Global (%)"]
         resumen["On Time (%)"] *= 100
         resumen["In Full (%)"] *= 100
         resumen["OTIF Global (%)"] *= 100
         
         st.table(resumen.style.format({
-            "On Time (%)": "{:.1f}%",
-            "In Full (%)": "{:.1f}%",
-            "Total CAPEX": "$ {:,.2f}",
-            "OTIF Global (%)": "{:.1f}%"
+            "On Time (%)": "{:.1f}%", "In Full (%)": "{:.1f}%",
+            "Total CAPEX": "$ {:,.2f}", "OTIF Global (%)": "{:.1f}%"
         }))
 
     # SECCIÓN 3: MATRIZ PRINCIPAL
     with st.expander("🗂️ Matriz Principal - Detalle de Proyectos", expanded=True):
         df_con_check = df_datos.copy()
         df_con_check.insert(0, "Seleccionar", False)
-        
         res_edicion = st.data_editor(
             df_con_check.drop(columns=['id']), 
             column_config={
@@ -229,18 +222,16 @@ if not df_datos.empty:
                 "Ejecutado OPX": st.column_config.NumberColumn(format="$ %,.2f"),
             },
             disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-            use_container_width=True, hide_index=True, key="main_editor_v16"
+            use_container_width=True, hide_index=True, key="main_editor_final"
         )
-
-        filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
-        ids_a_eliminar = df_datos.iloc[filas_marcadas]["id"].tolist()
-
-        col_acc1, col_acc2 = st.columns([1, 5])
-        with col_acc1:
-            if st.button(f"🗑️ Borrar ({len(ids_a_eliminar)})", type="primary", disabled=len(ids_a_eliminar)==0):
-                eliminar_registros(ids_a_eliminar)
+        
+        ids_del = df_datos.iloc[res_edicion[res_edicion["Seleccionar"] == True].index]["id"].tolist()
+        c_del, c_exp = st.columns([1, 5])
+        with c_del:
+            if st.button(f"🗑️ Borrar ({len(ids_del)})", type="primary", disabled=len(ids_del)==0):
+                eliminar_registros(ids_del)
                 st.rerun()
-        with col_acc2:
+        with c_exp:
             st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
 else:
     st.info("No hay registros en la base de datos.")
