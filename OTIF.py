@@ -114,19 +114,19 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     with c_tren:
         tren_t = st.selectbox("1. Selecciona Tren", options=["Seleccionar"] + list(CONFIG_TRENES.keys()), key="sel_tren")
     
+    # Lógica de opciones dinámicas
+    opciones_dir = ["Seleccionar"]
+    opciones_rte = ["Seleccionar"]
+    
     if tren_t != "Seleccionar":
-        opciones_directores = ["Seleccionar"] + CONFIG_TRENES[tren_t]["directores"]
-        opciones_rtes = ["Seleccionar"] + CONFIG_TRENES[tren_t]["rtes"]
-    else:
-        opciones_directores = ["Seleccionar"]
-        opciones_rtes = ["Seleccionar"]
+        opciones_dir += CONFIG_TRENES[tren_t]["directores"]
+        opciones_rte += CONFIG_TRENES[tren_t]["rtes"]
 
     with c_dir:
-        dir_s = st.selectbox("2. Director Responsable", options=opciones_directores, key="sel_dir")
+        dir_s = st.selectbox("2. Director Responsable", options=opciones_dir, key="sel_dir")
     with c_rte:
-        rte_s = st.selectbox("3. RTE asignado", options=opciones_rtes, key="sel_rte")
+        rte_s = st.selectbox("3. RTE asignado", options=opciones_rte, key="sel_rte")
 
-    # Formulario (Quitamos la validación del disabled para evitar el bloqueo que mencionas)
     with st.form("registro_proyecto", clear_on_submit=True):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
 
@@ -145,11 +145,16 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
         with f4: t_oe = st.text_input("Ejecutado OPX", value="0.00")
 
-        # Botón siempre activo, validamos AL HACER CLIC
         if st.form_submit_button("💾 Guardar Proyecto"):
-            # Validación interna
-            if tren_t == "Seleccionar" or dir_s == "Seleccionar" or rte_s == "Seleccionar" or not nombre_p.strip():
-                st.error("❌ Error: Debes seleccionar Tren, Director, RTE e ingresar un nombre válido.")
+            # --- VALIDACIÓN CRÍTICA ---
+            errores = []
+            if tren_t == "Seleccionar": errores.append("Tren")
+            if dir_s == "Seleccionar": errores.append("Director")
+            if rte_s == "Seleccionar": errores.append("RTE")
+            if not nombre_p.strip(): errores.append("Nombre del Proyecto")
+
+            if errores:
+                st.error(f"⚠️ No se puede guardar. Faltan los siguientes campos: {', '.join(errores)}")
             else:
                 ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
                 t_aprob, t_ejec = ca + oa, ce + oe
@@ -180,7 +185,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
 df_datos = cargar_datos()
 
 if not df_datos.empty:
-    # SECCIÓN 2: RESUMEN DE CUMPLIMIENTO
     with st.expander("📈 Resumen de Cumplimiento por Director", expanded=False):
         if "OTIF X Proy" in df_datos.columns:
             df_validos = df_datos[df_datos["OTIF X Proy"].isin(["SÍ", "NO"])].copy()
@@ -191,7 +195,6 @@ if not df_datos.empty:
                 resumen_df.columns = ["Director", "% OTIF Global"]
                 st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
 
-    # SECCIÓN 3: MATRIZ PRINCIPAL
     with st.expander("🗂️ Matriz Principal - Detalle de Proyectos", expanded=True):
         df_con_check = df_datos.copy()
         df_con_check.insert(0, "Seleccionar", False)
@@ -206,7 +209,7 @@ if not df_datos.empty:
                 "Ejecutado OPX": st.column_config.NumberColumn(format="$ %,.2f"),
             },
             disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-            use_container_width=True, hide_index=True, key="main_editor_v13"
+            use_container_width=True, hide_index=True, key="main_editor_v14"
         )
 
         filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
