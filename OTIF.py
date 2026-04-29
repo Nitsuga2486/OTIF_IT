@@ -270,7 +270,7 @@ if not df_datos.empty:
             # EXPORTACIÓN: UTF-8-SIG mantiene caracteres especiales; valores numéricos permiten formato moneda en Excel
             csv_data = df_datos.to_csv(index=False).encode('utf-8-sig')
             st.download_button(
-                label="📥 Exportar Matriz Completa (CSV)",
+                label="📥 Exportar (CSV)",
                 data=csv_data,
                 file_name="OTIF_Matrix_2026.csv",
                 mime='text/csv'
