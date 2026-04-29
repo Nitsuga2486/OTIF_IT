@@ -58,7 +58,6 @@ def crear_tabla():
                   capex_aprob REAL, capex_ejec REAL, pct_budget TEXT, on_budget TEXT,
                   otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT,
                   estatus TEXT)''')
-    # Parche por si la columna estatus no existe en el archivo local
     c.execute("PRAGMA table_info(proyectos)")
     columnas = [info[1] for info in c.fetchall()]
     if 'estatus' not in columnas:
@@ -159,9 +158,21 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=False):
                     except:
                         mes_final = "Pendiente"
 
-                if in_f_sel == "Sin avance": otif_final = "Sin avance"
-                elif es_ppto_anterior or ca == 0.01: otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ") else "NO"
-                else: otif_final = "SÍ" if (ot_manual == "SÍ" and in_f_sel == "SÍ" and on_b == "SÍ") else "NO"
+                # --- LÓGICA PORCENTUAL OTIF X PROYECTO ---
+                if in_f_sel == "Sin avance": 
+                    otif_final = "Sin avance"
+                else:
+                    # Asignación de valores (SÍ = 1.0, NO = 0.0)
+                    val_ot = 1.0 if ot_manual == "SÍ" else 0.0
+                    val_if = 1.0 if in_f_sel == "SÍ" else 0.0
+                    val_ob = 1.0 if on_b == "SÍ" else 0.0
+                    
+                    if es_ppto_anterior or ca <= 0.01:
+                        otif_num = (val_ot + val_if) / 2
+                    else:
+                        otif_num = (val_ot + val_if + val_ob) / 3
+                        
+                    otif_final = f"{otif_num * 100:.1f}%"
 
                 guardar_registro({
                     "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, 
@@ -182,6 +193,12 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
         dir_conf = [d for t in CONFIG_TRENES.values() for d in t["directores"]]
         nombres_maestra = sorted(list(set(dir_bd + dir_conf + list(ESTRUCTURA_REPORTES.keys()))))
         
+        # Función para limpiar el porcentaje de "OTIF X Proy" y convertirlo a número
+        def limpiar_otif(val):
+            if pd.isna(val) or val == "Sin avance": return None
+            try: return float(str(val).replace('%', ''))
+            except: return None
+            
         filas = []
         for n in nombres_maestra:
             mask_dir = (df_datos["Director"] == n)
@@ -193,12 +210,16 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
             
             df_f = df_datos[mask_dir | mask_lid].drop_duplicates()
             if not df_f.empty:
+                # Extraemos los valores válidos de OTIF para promediarlos
+                valores_otif = df_f["OTIF X Proy"].apply(limpiar_otif).dropna()
+                promedio_otif_global = valores_otif.mean() if not valores_otif.empty else 0.0
+                
                 filas.append({
                     "Líder / Director": n, 
                     "On Time (%)": (df_f["On Time"] == "SÍ").mean()*100, 
                     "In Full (%)": (df_f["In Full"] == "SÍ").mean()*100, 
                     "Total CAPEX": df_f["CAPEX Aprobado"].sum(), 
-                    "OTIF Global (%)": (df_f["OTIF X Proy"] == "SÍ").mean()*100
+                    "OTIF Global (%)": promedio_otif_global
                 })
             else:
                 filas.append({"Líder / Director": n, "On Time (%)": 0, "In Full (%)": 0, "Total CAPEX": 0, "OTIF Global (%)": 0})
