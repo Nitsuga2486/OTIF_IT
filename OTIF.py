@@ -13,12 +13,13 @@ def conectar_db():
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
+    # Aseguramos que el nombre sea 'OTIF X Proyecto' para coincidir con la lógica del manual
     c.execute('''CREATE TABLE IF NOT EXISTS proyectos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
                   fecha_plan TEXT, fecha_real TEXT, on_time TEXT, in_full TEXT,
                   capex_aprob REAL, capex_ejec REAL, pct_budget TEXT, on_budget TEXT,
-                  otif_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT)''')
+                  otif_x_proyecto TEXT, opex_aprob REAL, opex_ejec REAL, comentarios TEXT)''')
     conn.commit()
     conn.close()
 
@@ -26,7 +27,7 @@ def guardar_registro(d):
     conn = conectar_db()
     c = conn.cursor()
     query = '''INSERT INTO proyectos (tren_e2e, director, rte_nombre, mes_salida, fecha_plan, fecha_real, 
-               on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, otif_proyecto, 
+               on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, otif_x_proyecto, 
                opex_aprob, opex_ejec, comentarios) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)'''
     c.execute(query, (
         d["Tren E2E"], d["Director"], d["RTE Nombre"], d["Mes de Salida"],
@@ -40,6 +41,11 @@ def guardar_registro(d):
 def cargar_datos():
     conn = conectar_db()
     df = pd.read_sql_query("SELECT * FROM proyectos", conn)
+    # Renombrar columnas de la DB a nombres de visualización
+    df.columns = ["id", "Tren E2E", "Director", "RTE Nombre", "Mes de Salida", 
+                  "Fecha Planeada", "Fecha Real", "On Time", "In Full", 
+                  "CAPEX Aprobado", "Ejecutado CAPEX", "% Budget", "On Budget", 
+                  "OTIF X Proyecto", "OPEX Aprobado", "Ejecutado OPEX", "Comentarios"]
     conn.close()
     return df
 
@@ -94,8 +100,8 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
 
     c5, c6, c7, c8 = st.columns(4)
     with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
-    with c6: f_r = st.date_input("Fecha Real (Dejar hoy si no ha terminado)", format="DD/MM/YYYY")
-    with c7: in_f = st.selectbox("In Full", ["Sin avance", "SÍ", "NO"]) # Se agregó "Sin avance" para que coincida con la lógica
+    with c6: f_r = st.date_input("Fecha Real", format="DD/MM/YYYY")
+    with c7: in_f = st.selectbox("In Full", ["Sin avance", "SÍ", "NO"])
     with c8: com = st.text_input("Comentarios")
 
     st.markdown("### Finanzas")
@@ -107,14 +113,11 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
 
     if st.button("💾 Guardar Proyecto"):
         ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
-        
-        t_aprob = ca + oa
-        t_ejec = ce + oe
+        t_aprob, t_ejec = ca + oa, ce + oe
         on_b = "SÍ" if t_ejec <= t_aprob else "NO"
         pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
         ot = "SÍ" if f_r <= f_p else "NO"
 
-        # Lógica OTIF con Regla del Centavo y Vacíos
         if in_f == "Sin avance":
             otif_final = "Sin avance"
         elif ca == 0.01:
@@ -123,7 +126,6 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
 
         mes = meses_espanol[f_r.month]
-        
         datos = {
             "Tren E2E": nombre_p, "Director": dir_s, "RTE Nombre": rte_s, "Mes de Salida": mes,
             "Fecha Planeada": f_p, "Fecha Real": f_r, "On Time": ot, "In Full": in_f,
@@ -131,16 +133,15 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             "OTIF X Proyecto": otif_final, "OPEX Aprobado": oa, "Ejecutado OPEX": oe, "Comentarios": com
         }
         guardar_registro(datos)
-        st.success(f"Proyecto {nombre_p} registrado siguiendo las Reglas del Manual.")
+        st.success(f"Proyecto {nombre_p} registrado.")
         st.rerun()
 
 # --- TABLERO ---
 df_datos = cargar_datos()
 
 if not df_datos.empty:
-    # 4. TABLA RESUMEN (Punto 4 del Manual)
+    # RESUMEN
     st.subheader("📈 Resumen de Cumplimiento por Director")
-    # Filtramos solo proyectos con OTIF calificado
     df_validos = df_datos[df_datos["OTIF X Proyecto"].isin(["SÍ", "NO"])].copy()
     if not df_validos.empty:
         df_validos["Puntos"] = df_validos["OTIF X Proyecto"].map({"SÍ": 1, "NO": 0})
@@ -149,6 +150,7 @@ if not df_datos.empty:
         resumen_df.columns = ["Director", "% OTIF Global"]
         st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
     
+    # MATRIZ
     st.subheader("Matriz Principal (Detalle por Proyecto)")
     df_con_check = df_datos.copy()
     df_con_check.insert(0, "Seleccionar", False)
@@ -160,11 +162,10 @@ if not df_datos.empty:
             "CAPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
             "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
             "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
-            "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
-            "OTIF X Proyecto": st.column_config.TextColumn("OTIF Final")
+            "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f")
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="editor_manual_rules"
+        use_container_width=True, hide_index=True, key="editor_v2"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
@@ -176,6 +177,6 @@ if not df_datos.empty:
             eliminar_registros(ids_a_eliminar)
             st.rerun()
     with col_acc2:
-        st.download_button("📥 Exportar Matriz (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix_2026.csv")
+        st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
 else:
-    st.info("Inicia la captura para ver la Matriz Principal.")
+    st.info("Inicia la captura.")
