@@ -1,77 +1,92 @@
-# OTIF - On-Time In-Full Module
-# This module contains functionality for OTIF tracking and analysis
-
 import streamlit as st
 import pandas as pd
 import numpy as np
 
-st.set_page_config(page_title="Gestión OTIF & Budget IT", layout="wide")
+# Configuración de la página
+st.set_page_config(page_title="Dashboard OTIF IT - Seguimiento", layout="wide")
 
-st.title("📊 Tablero de Control de Proyectos IT")
-
-# 1. Carga de Datos (Simulada para el ejemplo)
-@st.cache_data
-def load_data():
-    # En un entorno real, aquí usarías pd.read_csv('tu_archivo.csv')
-    data = {
-        "Tren E2E": ["Proyecto Alfa", "Proyecto Beta"],
-        "Director": ["Director A", "Director B"],
-        "RTE Nombre": ["RTE 1", "RTE 2"],
-        "Mes de Salida": ["Enero", "Febrero"],
-        "Fecha Planeada": pd.to_datetime(["2026-01-15", "2026-02-20"]),
-        "Fecha Real": pd.to_datetime(["2026-01-14", "2026-02-25"]),
-        "In Full": ["SÍ", "NO"],
-        "CAPEX Aprobado": [100000, 250000],
-        "Ejecutado CAPEX": [95000, 260000],
-        "OPEX Aprobado": [20000, 50000],
-        "Ejecutado OPEX": [18000, 45000],
-        "Comentarios": ["En tiempo", "Retraso por proveedores"]
-    }
-    df = pd.DataFrame(data)
-    
-    # --- CÁLCULOS AUTOMÁTICOS ---
-    # 7. On Time
-    df['On Time'] = np.where(df['Fecha Real'] <= df['Fecha Planeada'], "SÍ", "NO")
-    
-    # 11. % Budget
-    df['Total Aprobado'] = df['CAPEX Aprobado'] + df['OPEX Aprobado']
-    df['Total Ejecutado'] = df['Ejecutado CAPEX'] + df['Ejecutado OPEX']
-    df['% Budget'] = (df['Total Ejecutado'] / df['Total Aprobado']) * 100
-    
-    # 12. On Budget
-    df['On Budget'] = np.where(df['Total Ejecutado'] <= df['Total Aprobado'], "SÍ", "NO")
-    
-    # 13. OTIF X Proyecto
-    df['OTIF X Proyecto'] = np.where((df['On Time'] == "SÍ") & (df['In Full'] == "SÍ"), "SÍ", "NO")
-    
-    # Reordenar columnas según tu diseño
-    columnas_orden = [
-        "Tren E2E", "Director", "RTE Nombre", "Mes de Salida", "Fecha Planeada", 
-        "Fecha Real", "On Time", "In Full", "CAPEX Aprobado", "Ejecutado CAPEX", 
-        "% Budget", "On Budget", "OTIF X Proyecto", "OPEX Aprobado", 
-        "Ejecutado OPEX", "Comentarios"
-    ]
-    return df[columnas_orden]
-
-df = load_data()
-
-# 2. Visualización de Métricas Clave
-total_otif = (df['OTIF X Proyecto'] == "SÍ").sum() / len(df) * 100
-total_budget = (df['On Budget'] == "SÍ").sum() / len(df) * 100
-
-m1, m2, m3 = st.columns(3)
-m1.metric("OTIF Global", f"{total_otif:.1f}%")
-m2.metric("Cumplimiento Presupuesto", f"{total_budget:.1f}%")
-m3.metric("Proyectos Activos", len(df))
-
+st.title("📊 Dashboard de Seguimiento OTIF - Área IT")
 st.markdown("---")
 
-# 3. Tabla Interactiva
-st.subheader("Detalle de las 16 Columnas de Seguimiento")
+# 1. Función para cargar y procesar datos
+@st.cache_data
+def load_data():
+    try:
+        # Carga el archivo CSV (Asegúrate de que este archivo esté en tu repositorio)
+        df = pd.read_csv('datos_otif_it.csv')
+        
+        # Convertir fechas a formato datetime
+        df['Fecha Planeada'] = pd.to_datetime(df['Fecha Planeada'])
+        df['Fecha Real'] = pd.to_datetime(df['Fecha Real'])
+        
+        # --- CÁLCULOS AUTOMÁTICOS ---
+        
+        # 7. On Time: Compara Fecha Real vs Fecha Planeada
+        df['On Time'] = np.where(df['Fecha Real'] <= df['Fecha Planeada'], "SÍ", "NO")
+        
+        # 11. % Budget: (Ejecutado Total / Aprobado Total)
+        total_aprobado = df['CAPEX Aprobado por Finanzas'] + df['OPEX Aprobado por Finanzas']
+        total_ejecutado = df['Ejecutado CAPEX'] + df['Ejecutado OPEX']
+        df['% Budget'] = (total_ejecutado / total_aprobado) * 100
+        
+        # 12. On Budget: Si lo ejecutado es menor o igual a lo aprobado
+        df['On Budget'] = np.where(total_ejecutado <= total_aprobado, "SÍ", "NO")
+        
+        # 13. OTIF X Proyecto: Debe cumplir On Time (7) e In Full (8)
+        # Nota: In Full debe ser una columna 'SÍ'/'NO' en tu CSV manual
+        df['OTIF X Proyecto'] = np.where((df['On Time'] == "SÍ") & (df['In Full'] == "SÍ"), "SÍ", "NO")
+        
+        # Reordenar y asegurar las 16 columnas
+        columnas_finales = [
+            "Tren E2E", "Director", "RTE Nombre", "Mes de Salida", 
+            "Fecha Planeada", "Fecha Real", "On Time", "In Full", 
+            "CAPEX Aprobado por Finanzas", "Ejecutado CAPEX", "% Budget", 
+            "On Budget", "OTIF X Proyecto", "OPEX Aprobado por Finanzas", 
+            "Ejecutado OPEX", "Comentarios"
+        ]
+        
+        return df[columnas_finales]
+    except FileNotFoundError:
+        return None
 
-# Formateo para resaltar SÍ/NO
-def color_si_no(val):
-    color = '#d4edda' if val == "SÍ" else '#f8d7da' if val == "NO" else None
-    return f'background-color: {color}'
+# Intentar cargar los datos
+df = load_data()
 
-st.dataframe(df.style.applymap(color_si_no, subset=['On Time', 'In Full', 'On Budget', 'OTIF X Proyecto']))
+if df is not None:
+    # 2. KPIs Principales en la parte superior
+    c1, c2, c3, c4 = st.columns(4)
+    
+    # Cálculos para métricas
+    otif_global = (df['OTIF X Proyecto'] == "SÍ").mean() * 100
+    on_time_global = (df['On Time'] == "SÍ").mean() * 100
+    on_budget_global = (df['On Budget'] == "SÍ").mean() * 100
+    
+    c1.metric("OTIF Global", f"{otif_global:.1f}%")
+    c2.metric("SLA (On-Time)", f"{on_time_global:.1f}%")
+    c3.metric("On Budget", f"{on_budget_global:.1f}%")
+    c4.metric("Proyectos Totales", len(df))
+
+    st.markdown("### Detalle de Proyectos (16 Columnas)")
+
+    # 3. Función de Estilo (Corrección de .map)
+    def color_si_no(val):
+        if val == "SÍ":
+            return 'background-color: #d4edda; color: #155724' # Verde
+        elif val == "NO":
+            return 'background-color: #f8d7da; color: #721c24' # Rojo
+        return None
+
+    # Mostrar tabla interactiva
+    st.dataframe(
+        df.style.map(color_si_no, subset=['On Time', 'In Full', 'On Budget', 'OTIF X Proyecto'])
+        .format({"% Budget": "{:.1f}%"}),
+        use_container_width=True
+    )
+    
+    # 4. Filtros en la barra lateral
+    st.sidebar.header("Filtros")
+    director_select = st.sidebar.multiselect("Filtrar por Director", options=df["Director"].unique())
+    mes_select = st.sidebar.multiselect("Filtrar por Mes", options=df["Mes de Salida"].unique())
+    
+else:
+    st.error("No se encontró el archivo 'datos_otif_it.csv'. Por favor súbelo a tu repositorio.")
