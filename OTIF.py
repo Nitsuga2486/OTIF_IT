@@ -2,20 +2,17 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import re
-import os
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OTIF IT - Seguimiento", layout="wide")
 
 # --- FUNCIONES DE PERSISTENCIA (SQLite) ---
 def conectar_db():
-    # Se conecta al archivo .db en la misma carpeta
     return sqlite3.connect('otif_it_data.db')
 
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
-    # Creamos la estructura basada en tus 16 columnas
     c.execute('''CREATE TABLE IF NOT EXISTS proyectos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
@@ -49,10 +46,18 @@ def cargar_datos():
     conn.close()
     return df
 
+# NUEVA FUNCIÓN: Eliminar registro por ID
+def eliminar_registro(id_proyecto):
+    conn = conectar_db()
+    c = conn.cursor()
+    c.execute("DELETE FROM proyectos WHERE id = ?", (id_proyecto,))
+    conn.commit()
+    conn.close()
+
 # Inicializar DB
 crear_tabla()
 
-# --- CONFIGURACIÓN DE NEGOCIO ---
+# --- CONFIGURACIÓN DE NEGOCIO (Igual que antes) ---
 CONFIG_TRENES = {
     "Comercial": {"directores": ["Ortiz de Montellanos Enrique"], "rtes": ["Hernandez Consuelo", "Mares Mireya"]},
     "eCommerce": {"directores": ["Muñoz Julio"], "rtes": ["Baltodano Karla"]},
@@ -87,9 +92,8 @@ def clean_numeric(value):
 
 # 2. INTERFAZ DE USUARIO
 st.title("📊 Seguimiento OTIF IT")
-st.markdown("---")
 
-with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
+with st.expander("➕ Registrar Nuevo Proyecto", expanded=False):
     c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
     with c1: nombre_proyecto = st.text_input("Nombre del Proyecto (Tren E2E)")
     with c2: tren_tipo = st.selectbox("Clasificación Tren", options=list(CONFIG_TRENES.keys()))
@@ -112,11 +116,9 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
     if st.button("💾 Guardar en Base de Datos"):
         c_aprob, c_ejec = clean_numeric(t_capex_aprob), clean_numeric(t_capex_ejec)
         o_aprob, o_ejec = clean_numeric(t_opex_aprob), clean_numeric(t_opex_ejec)
-
         mes_txt = meses_espanol[f_real.month]
         on_time = "SÍ" if f_real <= f_plan else "NO"
         otif = "SÍ" if (on_time == "SÍ" and in_full == "SÍ") else "NO"
-        
         t_aprob, t_ejec = c_aprob + o_aprob, c_ejec + o_ejec
         pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
         on_b = "SÍ" if t_ejec <= t_aprob else "NO"
@@ -131,16 +133,31 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
             "Comentarios": comentarios
         }
         guardar_registro(nuevo_registro)
-        st.success("✅ Registro guardado exitosamente.")
+        st.success("✅ Registro guardado.")
         st.rerun()
 
-# 3. TABLERO DE CONTROL (Desde DB)
+# 3. TABLERO DE CONTROL Y ELIMINACIÓN
 st.subheader("Tablero de Control Histórico")
 df_mostrar = cargar_datos()
 
 if not df_mostrar.empty:
+    # --- SECCIÓN DE ELIMINACIÓN ---
+    with st.sidebar:
+        st.header("🗑️ Gestionar Registros")
+        st.write("Selecciona un proyecto para eliminarlo permanentemente:")
+        # Creamos una lista de opciones amigable: "ID - Nombre del Proyecto"
+        opciones_eliminar = {f"{row['id']} - {row['tren_e2e']}": row['id'] for index, row in df_mostrar.iterrows()}
+        seleccion = st.selectbox("Proyecto a eliminar", options=list(opciones_eliminar.keys()))
+        
+        if st.button("Eliminar Registro Seleccionado", type="primary"):
+            id_a_borrar = opciones_eliminar[seleccion]
+            eliminar_registro(id_a_borrar)
+            st.warning(f"Registro {id_a_borrar} eliminado.")
+            st.rerun()
+
+    # --- MOSTRAR TABLA ---
     st.data_editor(
-        df_mostrar.drop(columns=['id']),
+        df_mostrar.drop(columns=['id']), # Ocultamos el ID en la tabla principal
         column_config={
             "Fecha Planeada": st.column_config.DateColumn(format="DD/MM/YYYY"),
             "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
@@ -152,7 +169,6 @@ if not df_mostrar.empty:
         use_container_width=True, hide_index=True
     )
     
-    # Opción de descarga
     csv = df_mostrar.to_csv(index=False).encode('utf-8')
     st.download_button("📥 Descargar Reporte CSV", data=csv, file_name="Reporte_OTIF.csv", mime="text/csv")
 else:
