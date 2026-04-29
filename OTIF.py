@@ -158,7 +158,7 @@ if not df_datos.empty:
     res_edicion = st.data_editor(
         df_con_check.drop(columns=['id']), 
         column_config={
-            "Seleccionar": st.column_config.CheckboxColumn("Eliminar?"),
+            "Seleccionar": st.column_config.CheckboxColumn(""),
             "CAPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
             "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
             "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
