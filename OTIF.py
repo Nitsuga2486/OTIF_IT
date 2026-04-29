@@ -1,5 +1,6 @@
 import streamlit as st
 import pandas as pd
+from datetime import datetime
 
 # Configuración de la página para aprovechar el ancho del monitor
 st.set_page_config(page_title="Estructura OTIF IT", layout="wide")
@@ -47,38 +48,45 @@ opciones_rte = [
     "N/A", "Miranda Vanessa"
 ]
 
-# Creamos un DataFrame inicial con 5 filas vacías
-df_estructura = pd.DataFrame([[""] * len(columnas)] * 5, columns=columnas)
+# Creamos un DataFrame inicial con 5 filas (usando None para que las fechas inicien vacías)
+df_estructura = pd.DataFrame([[None] * len(columnas)] * 5, columns=columnas)
 
-# 3. VISUALIZACIÓN INTERACTIVA
+# 3. VISUALIZACIÓN INTERACTIVA CON CALENDARIOS
 st.subheader("Layout de Seguimiento")
 
-# Configuración de los editores de columna
 st.data_editor(
     df_estructura,
     column_config={
         "Tren E2E": st.column_config.SelectboxColumn(
             "Tren E2E",
-            help="Selecciona el Tren correspondiente",
             options=opciones_tren,
             required=True,
         ),
         "Director": st.column_config.SelectboxColumn(
             "Director",
-            help="Selecciona el Director responsable",
             options=opciones_director,
             required=True,
         ),
         "RTE Nombre": st.column_config.SelectboxColumn(
             "RTE Nombre",
-            help="Selecciona el RTE asignado",
             options=opciones_rte,
             required=True,
-        )
+        ),
+        # CONFIGURACIÓN DE CALENDARIOS
+        "Fecha Planeada": st.column_config.DateColumn(
+            "Fecha Planeada",
+            format="DD-MM-YYYY",
+            step=1,
+        ),
+        "Fecha Real": st.column_config.DateColumn(
+            "Fecha Real",
+            format="DD-MM-YYYY",
+            step=1,
+        ),
     },
     use_container_width=True,
     hide_index=True,
     num_rows="dynamic"
 )
 
-st.info("Estructura lista con validación en las primeras 3 columnas (Tren, Director y RTE).")
+st.info("Estructura actualizada: Ahora las columnas 'Fecha Planeada' y 'Fecha Real' despliegan un calendario al editar.")
