@@ -2,18 +2,19 @@ import streamlit as st
 import pandas as pd
 import sqlite3
 import re
+import os
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OTIF 2026 Ongoing", layout="wide")
 
-# --- FUNCIONES DE PERSISTENCIA ---
+# --- FUNCIONES DE PERSISTENCIA (SQLite) ---
 def conectar_db():
     return sqlite3.connect('otif_it_data.db')
 
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
-    # Aseguramos que el nombre sea 'OTIF X Proyecto' para coincidir con la lógica del manual
+    # Estructura técnica de la tabla
     c.execute('''CREATE TABLE IF NOT EXISTS proyectos
                  (id INTEGER PRIMARY KEY AUTOINCREMENT,
                   tren_e2e TEXT, director TEXT, rte_nombre TEXT, mes_salida TEXT,
@@ -40,13 +41,23 @@ def guardar_registro(d):
 
 def cargar_datos():
     conn = conectar_db()
-    df = pd.read_sql_query("SELECT * FROM proyectos", conn)
-    # Renombrar columnas de la DB a nombres de visualización
-    df.columns = ["id", "Tren E2E", "Director", "RTE Nombre", "Mes de Salida", 
-                  "Fecha Planeada", "Fecha Real", "On Time", "In Full", 
-                  "CAPEX Aprobado", "Ejecutado CAPEX", "% Budget", "On Budget", 
-                  "OTIF X Proyecto", "OPEX Aprobado", "Ejecutado OPEX", "Comentarios"]
-    conn.close()
+    try:
+        df = pd.read_sql_query("SELECT * FROM proyectos", conn)
+        # Mapeo dinámico para evitar KeyErrors
+        column_map = {
+            "id": "id", "tren_e2e": "Tren E2E", "director": "Director", "rte_nombre": "RTE Nombre",
+            "mes_salida": "Mes de Salida", "fecha_plan": "Fecha Planeada", "fecha_real": "Fecha Real",
+            "on_time": "On Time", "in_full": "In Full", "capex_aprob": "CAPEX Aprobado",
+            "capex_ejec": "Ejecutado CAPEX", "pct_budget": "% Budget", "on_budget": "On Budget",
+            "otif_x_proyecto": "OTIF X Proyecto", "opex_aprob": "OPEX Aprobado",
+            "opex_ejec": "Ejecutado OPEX", "comentarios": "Comentarios"
+        }
+        if not df.empty:
+            df.rename(columns=column_map, inplace=True)
+    except Exception as e:
+        df = pd.DataFrame()
+    finally:
+        conn.close()
     return df
 
 def eliminar_registros(ids):
@@ -56,6 +67,7 @@ def eliminar_registros(ids):
     conn.commit()
     conn.close()
 
+# Inicializar Base de Datos
 crear_tabla()
 
 # --- CONFIGURACIÓN DE NEGOCIO ---
@@ -84,7 +96,7 @@ meses_espanol = {1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6:
 
 def clean_numeric(value):
     if not value: return 0.0
-    clean_val = re.sub(r'[^\d.]', '', value)
+    clean_val = re.sub(r'[^\d.]', '', str(value))
     try: return float(clean_val)
     except: return 0.0
 
@@ -114,10 +126,13 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     if st.button("💾 Guardar Proyecto"):
         ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
         t_aprob, t_ejec = ca + oa, ce + oe
+        
+        # Lógica de Negocio
         on_b = "SÍ" if t_ejec <= t_aprob else "NO"
         pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
         ot = "SÍ" if f_r <= f_p else "NO"
 
+        # Regla del Centavo y Vacíos
         if in_f == "Sin avance":
             otif_final = "Sin avance"
         elif ca == 0.01:
@@ -133,14 +148,14 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             "OTIF X Proyecto": otif_final, "OPEX Aprobado": oa, "Ejecutado OPEX": oe, "Comentarios": com
         }
         guardar_registro(datos)
-        st.success(f"Proyecto {nombre_p} registrado.")
+        st.success(f"Proyecto {nombre_p} registrado con éxito.")
         st.rerun()
 
-# --- TABLERO ---
+# --- TABLERO Y RESUMEN ---
 df_datos = cargar_datos()
 
 if not df_datos.empty:
-    # RESUMEN
+    # 📈 SECCIÓN RESUMEN
     st.subheader("📈 Resumen de Cumplimiento por Director")
     df_validos = df_datos[df_datos["OTIF X Proyecto"].isin(["SÍ", "NO"])].copy()
     if not df_validos.empty:
@@ -150,7 +165,7 @@ if not df_datos.empty:
         resumen_df.columns = ["Director", "% OTIF Global"]
         st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
     
-    # MATRIZ
+    # 🗂️ MATRIZ PRINCIPAL
     st.subheader("Matriz Principal (Detalle por Proyecto)")
     df_con_check = df_datos.copy()
     df_con_check.insert(0, "Seleccionar", False)
@@ -162,12 +177,15 @@ if not df_datos.empty:
             "CAPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
             "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
             "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
-            "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f")
+            "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
+            "Fecha Planeada": st.column_config.DateColumn(format="DD/MM/YYYY"),
+            "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="editor_v2"
+        use_container_width=True, hide_index=True, key="main_editor_2026"
     )
 
+    # Lógica de eliminación
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
     ids_a_eliminar = df_datos.iloc[filas_marcadas]["id"].tolist()
 
@@ -177,6 +195,6 @@ if not df_datos.empty:
             eliminar_registros(ids_a_eliminar)
             st.rerun()
     with col_acc2:
-        st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
+        st.download_button("📥 Exportar Matriz (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix_Axo.csv")
 else:
-    st.info("Inicia la captura.")
+    st.info("No hay proyectos registrados. Inicia la captura arriba.")
