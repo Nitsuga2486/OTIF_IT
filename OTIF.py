@@ -74,7 +74,7 @@ def eliminar_registros(ids):
 
 crear_tabla()
 
-# --- CONFIGURACIÓN DE NEGOCIO (ULTA ACTUALIZADO) ---
+# --- CONFIGURACIÓN DE NEGOCIO ---
 CONFIG_TRENES = {
     "Comercial": {"directores": ["Ortiz de Montellanos Enrique"], "rtes": ["Hernandez Consuelo", "Mares Mireya"]},
     "eCommerce": {"directores": ["Muñoz Julio"], "rtes": ["Baltodano Karla"]},
@@ -108,20 +108,26 @@ def clean_numeric(value):
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
 with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
-    # Selectores dinámicos fuera del form para refresco inmediato
+    # Selectores dinámicos con opción inicial "Seleccionar"
     c_tren, c_dir, c_rte = st.columns(3)
-    with c_tren:
-        tren_t = st.selectbox("1. Selecciona Tren", options=list(CONFIG_TRENES.keys()), key="sel_tren")
     
-    opciones_directores = CONFIG_TRENES[tren_t]["directores"]
-    opciones_rtes = CONFIG_TRENES[tren_t]["rtes"]
+    with c_tren:
+        tren_t = st.selectbox("1. Selecciona Tren", options=["Seleccionar"] + list(CONFIG_TRENES.keys()), key="sel_tren")
+    
+    # Lógica de cascada
+    if tren_t != "Seleccionar":
+        opciones_directores = ["Seleccionar"] + CONFIG_TRENES[tren_t]["directores"]
+        opciones_rtes = ["Seleccionar"] + CONFIG_TRENES[tren_t]["rtes"]
+    else:
+        opciones_directores = ["Seleccionar"]
+        opciones_rtes = ["Seleccionar"]
 
     with c_dir:
         dir_s = st.selectbox("2. Director Responsable", options=opciones_directores, key="sel_dir")
     with c_rte:
         rte_s = st.selectbox("3. RTE asignado", options=opciones_rtes, key="sel_rte")
 
-    # Formulario para el resto de los datos
+    # Formulario
     with st.form("registro_proyecto", clear_on_submit=True):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
 
@@ -140,7 +146,10 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
         with f4: t_oe = st.text_input("Ejecutado OPEX", value="0.00")
 
-        if st.form_submit_button("💾 Guardar Proyecto"):
+        # Validación para habilitar el botón
+        campos_listos = tren_t != "Seleccionar" and dir_s != "Seleccionar" and rte_s != "Seleccionar" and nombre_p.strip() != ""
+
+        if st.form_submit_button("💾 Guardar Proyecto", disabled=not campos_listos):
             ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
             t_aprob, t_ejec = ca + oa, ce + oe
             
@@ -165,6 +174,9 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             guardar_registro(datos)
             st.success(f"Proyecto {nombre_p} registrado con éxito.")
             st.rerun()
+        
+        if not campos_listos:
+            st.warning("⚠️ Debes seleccionar Tren, Director, RTE e ingresar un nombre para habilitar el guardado.")
 
 # --- TABLERO ---
 df_datos = cargar_datos()
@@ -194,7 +206,7 @@ if not df_datos.empty:
             "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_v10"
+        use_container_width=True, hide_index=True, key="main_editor_v11"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
