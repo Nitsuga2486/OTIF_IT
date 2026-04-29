@@ -4,9 +4,9 @@ import sqlite3
 import re
 
 # 1. CONFIGURACIÓN DE PÁGINA
-st.set_page_config(page_title="OTIF IT - Seguimiento", layout="wide")
+st.set_page_config(page_title="OTIF 2026 Ongoing", layout="wide")
 
-# --- FUNCIONES DE PERSISTENCIA (SQLite) ---
+# --- FUNCIONES DE PERSISTENCIA ---
 def conectar_db():
     return sqlite3.connect('otif_it_data.db')
 
@@ -31,18 +31,15 @@ def guardar_registro(d):
     c.execute(query, (
         d["Tren E2E"], d["Director"], d["RTE Nombre"], d["Mes de Salida"],
         str(d["Fecha Planeada"]), str(d["Fecha Real"]), d["On Time"], d["In Full"],
-        d["CAPEX Aprobado por Finanzas"], d["Ejecutado CAPEX"], d["% Budget"], d["On Budget"],
-        d["OTIF X Proyecto"], d["OPEX Aprobado por Finanzas"], d["Ejecutado OPEX"], d["Comentarios"]
+        d["CAPEX Aprobado"], d["Ejecutado CAPEX"], d["% Budget"], d["On Budget"],
+        d["OTIF X Proyecto"], d["OPEX Aprobado"], d["Ejecutado OPEX"], d["Comentarios"]
     ))
     conn.commit()
     conn.close()
 
 def cargar_datos():
     conn = conectar_db()
-    try:
-        df = pd.read_sql_query("SELECT * FROM proyectos", conn)
-    except:
-        df = pd.DataFrame()
+    df = pd.read_sql_query("SELECT * FROM proyectos", conn)
     conn.close()
     return df
 
@@ -53,7 +50,6 @@ def eliminar_registros(ids):
     conn.commit()
     conn.close()
 
-# Inicializar Base de Datos
 crear_tabla()
 
 # --- CONFIGURACIÓN DE NEGOCIO ---
@@ -86,101 +82,92 @@ def clean_numeric(value):
     try: return float(clean_val)
     except: return 0.0
 
-# --- INTERFAZ DE USUARIO ---
-st.title("📊 Seguimiento OTIF IT")
-st.markdown("---")
+# --- INTERFAZ ---
+st.title("📊 Dashboard OTIF - Portafolio 2026")
 
-# 1. FORMULARIO DE REGISTRO
-with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
+with st.expander("➕ Registrar Nuevo Proyecto / Avance", expanded=True):
     c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
-    with c1: nombre_proyecto = st.text_input("Nombre del Proyecto (Tren E2E)")
-    with c2: tren_tipo = st.selectbox("Clasificación Tren", options=list(CONFIG_TRENES.keys()))
-    with c3: dir_sel = st.selectbox("Director", options=CONFIG_TRENES[tren_tipo]["directores"])
-    with c4: rte_sel = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_tipo]["rtes"])
+    with c1: nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
+    with c2: tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
+    with c3: dir_s = st.selectbox("Director", options=CONFIG_TRENES[tren_t]["directores"])
+    with c4: rte_s = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_t]["rtes"])
 
     c5, c6, c7, c8 = st.columns(4)
-    with c5: f_plan = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
-    with c6: f_real = st.date_input("Fecha Real", format="DD/MM/YYYY")
-    with c7: in_full = st.selectbox("In Full", ["SÍ", "NO"])
-    with c8: comentarios = st.text_input("Comentarios")
+    with c5: f_p = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
+    with c6: f_r = st.date_input("Fecha Real (Dejar hoy si no ha terminado)", format="DD/MM/YYYY")
+    with c7: in_f = st.selectbox("In Full", ["Esperando...", "SÍ", "NO"])
+    with c8: com = st.text_input("Comentarios")
 
-    st.markdown("### Presupuesto (Moneda Nacional)")
+    st.markdown("### Finanzas (Regla del Centavo: Aprobado = 0.01)")
     f1, f2, f3, f4 = st.columns(4)
-    with f1: t_capex_aprob = st.text_input("CAPEX Aprobado Finanzas", value="0.00")
-    with f2: t_capex_ejec = st.text_input("Ejecutado CAPEX", value="0.00")
-    with f3: t_opex_aprob = st.text_input("OPEX Aprobado Finanzas", value="0.00")
-    with f4: t_opex_ejec = st.text_input("Ejecutado OPEX", value="0.00")
+    with f1: t_ca = st.text_input("CAPEX Aprobado", value="0.00")
+    with f2: t_ce = st.text_input("Ejecutado CAPEX", value="0.00")
+    with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
+    with f4: t_oe = st.text_input("Ejecutado OPEX", value="0.00")
 
-    if st.button("💾 Guardar en Base de Datos"):
-        c_aprob, c_ejec = clean_numeric(t_capex_aprob), clean_numeric(t_capex_ejec)
-        o_aprob, o_ejec = clean_numeric(t_opex_aprob), clean_numeric(t_opex_ejec)
-        mes_txt = meses_espanol[f_real.month]
-        on_time = "SÍ" if f_real <= f_plan else "NO"
-        otif = "SÍ" if (on_time == "SÍ" and in_full == "SÍ") else "NO"
-        t_aprob, t_ejec = c_aprob + o_aprob, c_ejec + o_ejec
-        pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
-        on_b = "SÍ" if t_ejec <= t_aprob else "NO"
+    if st.button("💾 Guardar Proyecto"):
+        ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
         
-        nuevo_registro = {
-            "Tren E2E": nombre_proyecto, "Director": dir_sel, "RTE Nombre": rte_sel,
-            "Mes de Salida": mes_txt, "Fecha Planeada": f_plan, "Fecha Real": f_real,
-            "On Time": on_time, "In Full": in_full,
-            "CAPEX Aprobado por Finanzas": c_aprob, "Ejecutado CAPEX": c_ejec,
-            "% Budget": pct_b, "On Budget": on_b, "OTIF X Proyecto": otif,
-            "OPEX Aprobado por Finanzas": o_aprob, "Ejecutado OPEX": o_ejec,
-            "Comentarios": comentarios
+        # 1. Regla del Tope de Presupuesto
+        t_aprob = ca + oa
+        t_ejec = ce + oe
+        on_b = "SÍ" if t_ejec <= t_aprob else "NO"
+        pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
+
+        # 2. On Time
+        ot = "SÍ" if f_r <= f_p else "NO"
+
+        # 3. Lógica OTIF (Regla del Centavo y Manejo de Vacíos)
+        if in_f == "Esperando...":
+            otif_final = "Sin avance"
+        elif ca == 0.01: # Regla del Centavo (Proyectos 2025)
+            otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
+        else:
+            otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
+
+        mes = meses_espanol[f_r.month]
+        
+        datos = {
+            "Tren E2E": nombre_p, "Director": dir_s, "RTE Nombre": rte_s, "Mes de Salida": mes,
+            "Fecha Planeada": f_p, "Fecha Real": f_r, "On Time": ot, "In Full": in_f,
+            "CAPEX Aprobado": ca, "Ejecutado CAPEX": ce, "% Budget": pct_b, "On Budget": on_b,
+            "OTIF X Proyecto": otif_final, "OPEX Aprobado": oa, "Ejecutado OPEX": oe, "Comentarios": com
         }
-        guardar_registro(nuevo_registro)
-        st.success("✅ Registro guardado exitosamente.")
+        guardar_registro(datos)
+        st.success(f"Proyecto {nombre_p} registrado siguiendo las Reglas del Manual.")
         st.rerun()
 
-# 2. TABLERO DE CONTROL
-st.subheader("Tablero de Control Histórico")
+# --- TABLERO ---
+st.subheader("Matriz Principal (Detalle por Proyecto)")
 df_datos = cargar_datos()
 
 if not df_datos.empty:
-    # Preparar el dataframe con la columna de selección
     df_con_check = df_datos.copy()
     df_con_check.insert(0, "Seleccionar", False)
     
-    # Editor de datos
     res_edicion = st.data_editor(
         df_con_check.drop(columns=['id']), 
         column_config={
-            "Seleccionar": st.column_config.CheckboxColumn(
-                "Eliminar?",
-                help="Marca los proyectos que desees borrar",
-                default=False,
-            ),
-            "Fecha Planeada": st.column_config.DateColumn(format="DD/MM/YYYY"),
-            "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
-            "CAPEX Aprobado por Finanzas": st.column_config.NumberColumn(format="$ %,.2f"),
+            "Seleccionar": st.column_config.CheckboxColumn("Eliminar?"),
+            "CAPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
             "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
-            "OPEX Aprobado por Finanzas": st.column_config.NumberColumn(format="$ %,.2f"),
+            "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
             "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
+            "OTIF X Proyecto": st.column_config.TextColumn("OTIF Final", help="Calculado con Regla del Centavo si Aprobado = 0.01")
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True,
-        hide_index=True,
-        key="editor_otif_final"
+        use_container_width=True, hide_index=True, key="editor_manual_rules"
     )
 
-    # Lógica para identificar IDs marcados
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
     ids_a_eliminar = df_datos.iloc[filas_marcadas]["id"].tolist()
 
-    # Botones de Acción debajo de la tabla
     col_acc1, col_acc2 = st.columns([1, 5])
     with col_acc1:
-        boton_del = st.button(f"🗑️ Eliminar ({len(ids_a_eliminar)})", type="primary", disabled=len(ids_a_eliminar)==0)
-        if boton_del:
+        if st.button(f"🗑️ Borrar ({len(ids_a_eliminar)})", type="primary", disabled=len(ids_a_eliminar)==0):
             eliminar_registros(ids_a_eliminar)
-            st.warning("Registros eliminados de la base de datos.")
             st.rerun()
-            
     with col_acc2:
-        csv = df_datos.to_csv(index=False).encode('utf-8')
-        st.download_button("📥 Descargar Reporte CSV", data=csv, file_name="Reporte_OTIF_IT.csv", mime="text/csv")
-
+        st.download_button("📥 Exportar Matriz (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix_2026.csv")
 else:
-    st.info("No hay proyectos en la base de datos. Inicia la captura arriba.")
+    st.info("Inicia la captura para ver la Matriz Principal.")
