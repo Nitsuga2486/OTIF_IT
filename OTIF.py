@@ -27,12 +27,25 @@ columnas = [
     "Comentarios"
 ]
 
-# 2. OPCIONES PARA EL MENÚ DESPLEGABLE (Ahora en Tren E2E)
+# 2. OPCIONES PARA LOS MENÚS DESPLEGABLES
 opciones_tren = [
     "Comercial", "eCommerce", "Finanzas", "IT", "Nuevos Negocios", 
     "Off Price", "Omnicanalidad", "One AXO", "Operaciones", 
     "Operación en Tienda", "Palanca de Valor", "Privalia", 
     "Recursos Humanos", "Sudamérica", "Ulta"
+]
+
+opciones_director = [
+    "Botello Antonio",
+    "Diaz de Leon Lino",
+    "Lopez-Portillo Salvador",
+    "Miranda Vanessa",
+    "Muñoz Julio",
+    "Ortiz de Montellanos Enrique",
+    "Posada Evelyn",
+    "Quezada Guillermo",
+    "Rojas Juan Manuel",
+    "Reyes Israel"
 ]
 
 # Creamos un DataFrame inicial con 5 filas vacías
@@ -41,7 +54,7 @@ df_estructura = pd.DataFrame([[""] * len(columnas)] * 5, columns=columnas)
 # 3. VISUALIZACIÓN INTERACTIVA
 st.subheader("Layout de Seguimiento")
 
-# Configuramos la columna "Tren E2E" con el menú desplegable
+# Configuración de los editores de columna
 st.data_editor(
     df_estructura,
     column_config={
@@ -50,11 +63,17 @@ st.data_editor(
             help="Selecciona el Tren correspondiente",
             options=opciones_tren,
             required=True,
+        ),
+        "Director": st.column_config.SelectboxColumn(
+            "Director",
+            help="Selecciona el Director responsable",
+            options=opciones_director,
+            required=True,
         )
     },
     use_container_width=True,
     hide_index=True,
-    num_rows="dynamic"  # Permite añadir filas con el botón "+" al final de la tabla
+    num_rows="dynamic"
 )
 
-st.info("Estructura actualizada. El menú desplegable ahora se encuentra en la columna 'Tren E2E'.")
+st.info("Estructura lista con menús desplegables en 'Tren E2E' y 'Director'.")
