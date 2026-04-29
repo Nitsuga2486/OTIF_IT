@@ -74,7 +74,7 @@ def eliminar_registros(ids):
 
 crear_tabla()
 
-# --- CONFIGURACIÓN DE NEGOCIO ---
+# --- CONFIGURACIÓN DE NEGOCIO (ULTA ACTUALIZADO) ---
 CONFIG_TRENES = {
     "Comercial": {"directores": ["Ortiz de Montellanos Enrique"], "rtes": ["Hernandez Consuelo", "Mares Mireya"]},
     "eCommerce": {"directores": ["Muñoz Julio"], "rtes": ["Baltodano Karla"]},
@@ -93,7 +93,7 @@ CONFIG_TRENES = {
     "Privalia": {"directores": ["Botello Antonio"], "rtes": ["N/A"]},
     "Recursos Humanos": {"directores": ["Ortiz de Montellanos Enrique"], "rtes": ["Baltodano Karla"]},
     "Sudamérica": {"directores": ["Quezada Guillermo"], "rtes": ["N/A"]},
-    "Ulta": {"directores": ["Muñoz Julio", "Diaz de Leon Lino"], "rtes": ["Navarrete Arantzasu", "N/A"]}
+    "Ulta": {"directores": ["Muñoz Julio", "Diaz de Leon Lino"], "rtes": ["Navarrete Arantzasu", "Baltodano Karla", "N/A"]}
 }
 
 meses_espanol = {1: "Enero", 2: "Febrero", 3: "Marzo", 4: "Abril", 5: "Mayo", 6: "Junio", 7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"}
@@ -108,12 +108,11 @@ def clean_numeric(value):
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
 with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
-    # FUERA del form ponemos los selectores dependientes para que refresquen en tiempo real
+    # Selectores dinámicos fuera del form para refresco inmediato
     c_tren, c_dir, c_rte = st.columns(3)
     with c_tren:
         tren_t = st.selectbox("1. Selecciona Tren", options=list(CONFIG_TRENES.keys()), key="sel_tren")
     
-    # Extraemos las opciones basadas en el tren seleccionado
     opciones_directores = CONFIG_TRENES[tren_t]["directores"]
     opciones_rtes = CONFIG_TRENES[tren_t]["rtes"]
 
@@ -122,7 +121,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     with c_rte:
         rte_s = st.selectbox("3. RTE asignado", options=opciones_rtes, key="sel_rte")
 
-    # Ahora sí, el resto de los datos en el Form
+    # Formulario para el resto de los datos
     with st.form("registro_proyecto", clear_on_submit=True):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
 
@@ -195,7 +194,7 @@ if not df_datos.empty:
             "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_v9"
+        use_container_width=True, hide_index=True, key="main_editor_v10"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
