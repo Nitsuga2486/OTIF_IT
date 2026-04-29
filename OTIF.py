@@ -53,9 +53,9 @@ def cargar_datos():
             "id": "id", "tren_e2e": "Tren E2E", "director": "Director", "rte_nombre": "RTE Nombre",
             "mes_salida": "Mes de Salida", "fecha_plan": "Fecha Planeada", "fecha_real": "Fecha Real",
             "on_time": "On Time", "in_full": "In Full", "capex_aprob": "CAPEX Aprobado",
-            "capex_ejec": "Ejecutado CAPEX", "pct_budget": "% Budget", "on_budget": "On Budget",
-            "otif_x_proyecto": "OTIF X Proyecto", "opex_aprob": "OPEX Aprobado",
-            "opex_ejec": "Ejecutado OPEX", "comentarios": "Comentarios"
+            "capex_ejec": "Ejecutado CPX", "pct_budget": "% Budget", "on_budget": "On Budget",
+            "otif_x_proyecto": "OTIF X Proy", "opex_aprob": "OPEX Aprobado",
+            "opex_ejec": "Ejecutado OPX", "comentarios": "Comentarios"
         }
         if not df.empty:
             df.rename(columns=column_map, inplace=True)
@@ -126,6 +126,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     with c_rte:
         rte_s = st.selectbox("3. RTE asignado", options=opciones_rtes, key="sel_rte")
 
+    # Formulario (Quitamos la validación del disabled para evitar el bloqueo que mencionas)
     with st.form("registro_proyecto", clear_on_submit=True):
         nombre_p = st.text_input("Nombre del Proyecto (Tren E2E)")
 
@@ -140,59 +141,57 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         
         f1, f2, f3, f4 = st.columns(4)
         with f1: t_ca = st.text_input("CAPEX Aprobado", value="0.00")
-        with f2: t_ce = st.text_input("Ejecutado CAPEX", value="0.00")
+        with f2: t_ce = st.text_input("Ejecutado CPX", value="0.00")
         with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
-        with f4: t_oe = st.text_input("Ejecutado OPEX", value="0.00")
+        with f4: t_oe = st.text_input("Ejecutado OPX", value="0.00")
 
-        campos_listos = tren_t != "Seleccionar" and dir_s != "Seleccionar" and rte_s != "Seleccionar" and nombre_p.strip() != ""
-
-        if st.form_submit_button("💾 Guardar Proyecto", disabled=not campos_listos):
-            ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
-            t_aprob, t_ejec = ca + oa, ce + oe
-            
-            on_b = "SÍ" if t_ejec <= t_aprob else "NO"
-            pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
-            ot = "SÍ" if f_r <= f_p else "NO"
-
-            if in_f == "Sin avance":
-                otif_final = "Sin avance"
-            elif es_ppto_anterior or ca == 0.01: 
-                otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
+        # Botón siempre activo, validamos AL HACER CLIC
+        if st.form_submit_button("💾 Guardar Proyecto"):
+            # Validación interna
+            if tren_t == "Seleccionar" or dir_s == "Seleccionar" or rte_s == "Seleccionar" or not nombre_p.strip():
+                st.error("❌ Error: Debes seleccionar Tren, Director, RTE e ingresar un nombre válido.")
             else:
-                otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
+                ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
+                t_aprob, t_ejec = ca + oa, ce + oe
+                
+                on_b = "SÍ" if t_ejec <= t_aprob else "NO"
+                pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
+                ot = "SÍ" if f_r <= f_p else "NO"
 
-            mes = meses_espanol[f_r.month]
-            datos = {
-                "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, "mes_salida": mes,
-                "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f,
-                "capex_aprob": ca, "capex_ejec": ce, "pct_budget": pct_b, "on_budget": on_b,
-                "otif_x_proyecto": otif_final, "opex_aprob": oa, "opex_ejec": oe, "comentarios": com
-            }
-            guardar_registro(datos)
-            st.success(f"Proyecto {nombre_p} registrado con éxito.")
-            st.rerun()
-        
-        if not campos_listos:
-            st.warning("⚠️ Debes seleccionar Tren, Director, RTE e ingresar un nombre para habilitar el guardado.")
+                if in_f == "Sin avance":
+                    otif_final = "Sin avance"
+                elif es_ppto_anterior or ca == 0.01: 
+                    otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
+                else:
+                    otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
+
+                mes = meses_espanol[f_r.month]
+                datos = {
+                    "tren_e2e": nombre_p, "director": dir_s, "rte_nombre": rte_s, "mes_salida": mes,
+                    "fecha_plan": f_p, "fecha_real": f_r, "on_time": ot, "in_full": in_f,
+                    "capex_aprob": ca, "capex_ejec": ce, "pct_budget": pct_b, "on_budget": on_b,
+                    "otif_x_proyecto": otif_final, "opex_aprob": oa, "opex_ejec": oe, "comentarios": com
+                }
+                guardar_registro(datos)
+                st.success(f"✅ Proyecto {nombre_p} registrado con éxito.")
+                st.rerun()
 
 # --- DATOS CARGADOS ---
 df_datos = cargar_datos()
 
 if not df_datos.empty:
-    # SECCIÓN 2: RESUMEN DE CUMPLIMIENTO (DESPLEGABLE)
+    # SECCIÓN 2: RESUMEN DE CUMPLIMIENTO
     with st.expander("📈 Resumen de Cumplimiento por Director", expanded=False):
-        if "OTIF X Proyecto" in df_datos.columns:
-            df_validos = df_datos[df_datos["OTIF X Proyecto"].isin(["SÍ", "NO"])].copy()
+        if "OTIF X Proy" in df_datos.columns:
+            df_validos = df_datos[df_datos["OTIF X Proy"].isin(["SÍ", "NO"])].copy()
             if not df_validos.empty:
-                df_validos["Puntos"] = df_validos["OTIF X Proyecto"].map({"SÍ": 1, "NO": 0})
+                df_validos["Puntos"] = df_validos["OTIF X Proy"].map({"SÍ": 1, "NO": 0})
                 resumen = df_validos.groupby("Director")["Puntos"].mean() * 100
                 resumen_df = resumen.reset_index()
                 resumen_df.columns = ["Director", "% OTIF Global"]
                 st.table(resumen_df.style.format({"% OTIF Global": "{:.1f}%"}))
-            else:
-                st.info("No hay datos calificados (SÍ/NO) para generar el resumen aún.")
 
-    # SECCIÓN 3: MATRIZ PRINCIPAL (DESPLEGABLE)
+    # SECCIÓN 3: MATRIZ PRINCIPAL
     with st.expander("🗂️ Matriz Principal - Detalle de Proyectos", expanded=True):
         df_con_check = df_datos.copy()
         df_con_check.insert(0, "Seleccionar", False)
@@ -202,12 +201,12 @@ if not df_datos.empty:
             column_config={
                 "Seleccionar": st.column_config.CheckboxColumn(""),
                 "CAPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
-                "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
+                "Ejecutado CPX": st.column_config.NumberColumn(format="$ %,.2f"),
                 "OPEX Aprobado": st.column_config.NumberColumn(format="$ %,.2f"),
-                "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
+                "Ejecutado OPX": st.column_config.NumberColumn(format="$ %,.2f"),
             },
             disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-            use_container_width=True, hide_index=True, key="main_editor_v12"
+            use_container_width=True, hide_index=True, key="main_editor_v13"
         )
 
         filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
