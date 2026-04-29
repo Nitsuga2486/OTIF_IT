@@ -108,7 +108,6 @@ def clean_numeric(value):
 st.title("📊 Dashboard OTIF - Portafolio 2026")
 
 with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
-    # Usamos un formulario para poder limpiar campos fácilmente
     with st.form("registro_proyecto", clear_on_submit=True):
         c2, c3, c4, c1 = st.columns([1, 1, 1, 2])
         with c2: tren_t = st.selectbox("Tren", options=list(CONFIG_TRENES.keys()))
@@ -123,25 +122,19 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
         with c8: com = st.text_input("Comentarios")
 
         st.markdown("### Finanzas")
+        # Checkbox meramente lógico
         es_ppto_anterior = st.checkbox("PPTO Año Anterior")
         
         f1, f2, f3, f4 = st.columns(4)
-        with f1: 
-            if es_ppto_anterior:
-                t_ca = st.text_input("CAPEX Aprobado", value="0.01", disabled=True)
-            else:
-                t_ca = st.text_input("CAPEX Aprobado", value="0.00")
-                
+        with f1: t_ca = st.text_input("CAPEX Aprobado", value="0.00")
         with f2: t_ce = st.text_input("Ejecutado CAPEX", value="0.00")
         with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
         with f4: t_oe = st.text_input("Ejecutado OPEX", value="0.00")
 
-        # Botones de acción del formulario
         c_btn1, c_btn2, _ = st.columns([1, 1, 4])
         with c_btn1:
             submit = st.form_submit_button("💾 Guardar")
         with c_btn2:
-            # El botón de limpiar es nativo gracias al parámetro clear_on_submit del st.form
             limpiar = st.form_submit_button("🧹 Limpiar")
 
         if submit:
@@ -152,9 +145,16 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
             pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
             ot = "SÍ" if f_r <= f_p else "NO"
 
+            # LÓGICA DE DETECCIÓN: 
+            # Si el checkbox está marcado, forzamos internamente la regla del centavo 
+            # sin importar lo que el usuario escribió en t_ca.
             if in_f == "Sin avance":
                 otif_final = "Sin avance"
+            elif es_ppto_anterior: 
+                # Regla del centavo aplicada internamente por selección del checkbox
+                otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
             elif ca == 0.01:
+                # Mantenemos también la detección manual por si el usuario escribe 0.01
                 otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
             else:
                 otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
@@ -167,7 +167,7 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
                 "otif_x_proyecto": otif_final, "opex_aprob": oa, "opex_ejec": oe, "comentarios": com
             }
             guardar_registro(datos)
-            st.success(f"Proyecto {nombre_p} registrado exitosamente.")
+            st.success(f"Proyecto {nombre_p} registrado con éxito.")
             st.rerun()
 
 # --- TABLERO ---
@@ -200,7 +200,7 @@ if not df_datos.empty:
             "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_v6"
+        use_container_width=True, hide_index=True, key="main_editor_v7"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
