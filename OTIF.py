@@ -90,7 +90,7 @@ def cargar_datos():
             for col in ["CAPEX Aprobado", "capex_ejec", "opex_aprob", "opex_ejec"]:
                 if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0.0)
             
-            # RECALCULAR REGISTROS ANTIGUOS (Convertir SÍ/NO a porcentaje)
+            # RECALCULAR REGISTROS ANTIGUOS
             def recalcular_otif_historico(row):
                 if row["In Full"] == "Sin avance": return "Sin avance"
                 if isinstance(row["OTIF X Proy"], str) and "%" in row["OTIF X Proy"]: return row["OTIF X Proy"]
@@ -206,7 +206,6 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
         dir_bd = df_datos["Director"].unique().tolist()
         dir_conf = [d for t in CONFIG_TRENES.values() for d in t["directores"]]
         
-        # Ocultar las identidades invertidas para evitar duplicados visuales
         nombres_a_excluir = ["Miranda Vanessa", "Baltodano Karla", "Mares Mireya"]
         nombres_maestra = sorted(list(set(dir_bd + dir_conf + list(ESTRUCTURA_REPORTES.keys()))))
         nombres_maestra = [n for n in nombres_maestra if n not in nombres_a_excluir]
@@ -238,9 +237,24 @@ with st.expander("📈 Resumen de Cumplimiento por Líder / Director", expanded=
                     "OTIF Global (%)": promedio_otif_global
                 })
             else:
-                filas.append({"Líder / Director": n, "On Time (%)": 0, "In Full (%)": 0, "Total CAPEX": 0, "OTIF Global (%)": 0})
+                filas.append({
+                    "Líder / Director": n, 
+                    "On Time (%)": "Sin proyectos", 
+                    "In Full (%)": "Sin proyectos", 
+                    "Total CAPEX": "Sin proyectos", 
+                    "OTIF Global (%)": "Sin proyectos"
+                })
         
-        st.table(pd.DataFrame(filas).style.format({"On Time (%)": "{:.1f}%", "In Full (%)": "{:.1f}%", "Total CAPEX": "$ {:,.2f}", "OTIF Global (%)": "{:.1f}%"}))
+        # Funciones de formateo seguro para evitar errores con los textos insertados
+        def fmt_pct(x): return x if isinstance(x, str) else f"{x:.1f}%"
+        def fmt_cap(x): return x if isinstance(x, str) else f"$ {x:,.2f}"
+
+        st.table(pd.DataFrame(filas).style.format({
+            "On Time (%)": fmt_pct, 
+            "In Full (%)": fmt_pct, 
+            "Total CAPEX": fmt_cap, 
+            "OTIF Global (%)": fmt_pct
+        }))
     else: st.info("Sin datos registrados.")
 
 # --- MATRIZ PRINCIPAL ---
@@ -254,7 +268,7 @@ if not df_datos.empty:
                                     "In Full": st.column_config.SelectboxColumn(options=["Sin avance", "SÍ", "NO"]),
                                     "Estatus": st.column_config.SelectboxColumn(options=["Liberado", "Retrasado", "En Curso"])
                                 }, 
-                                use_container_width=True, hide_index=True, key="editor_vFinal_v8")
+                                use_container_width=True, hide_index=True, key="editor_vFinal_v9")
         
         ids_del = df_datos.iloc[res_ed[res_ed["Seleccionar"] == True].index]["id"].tolist()
         c1, c2 = st.columns([1, 5])
@@ -262,7 +276,6 @@ if not df_datos.empty:
             if st.button(f"🗑️ Borrar ({len(ids_del)})", type="primary", disabled=len(ids_del)==0): eliminar_registros(ids_del); st.rerun()
         
         with c2:
-            # EXPORTAR DIRECTO A EXCEL PARA EVITAR PROBLEMAS DE CODIFICACIÓN EN MAC
             output = io.BytesIO()
             with pd.ExcelWriter(output, engine='xlsxwriter') as writer:
                 df_datos.to_excel(writer, index=False, sheet_name='Matriz_OTIF')
