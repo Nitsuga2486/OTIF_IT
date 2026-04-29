@@ -13,12 +13,9 @@ def conectar_db():
 def crear_tabla():
     conn = conectar_db()
     c = conn.cursor()
-    # TRUCO DE IT: Si la tabla existe pero da error, la reiniciamos para que coincida con el código nuevo
     try:
-        # Intentamos insertar un registro vacío solo para ver si la estructura es la correcta
         c.execute("SELECT id, tren_e2e, otif_x_proyecto FROM proyectos LIMIT 1")
     except:
-        # Si falla, borramos la tabla vieja y creamos la nueva con los 17 campos (id + 16 datos)
         c.execute("DROP TABLE IF EXISTS proyectos")
         c.execute('''CREATE TABLE proyectos
                      (id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -32,7 +29,6 @@ def crear_tabla():
 def guardar_registro(d):
     conn = conectar_db()
     c = conn.cursor()
-    # 16 signos de interrogación para las 16 columnas de datos
     query = '''INSERT INTO proyectos 
                (tren_e2e, director, rte_nombre, mes_salida, fecha_plan, fecha_real, 
                 on_time, in_full, capex_aprob, capex_ejec, pct_budget, on_budget, 
@@ -45,7 +41,6 @@ def guardar_registro(d):
         d["capex_aprob"], d["capex_ejec"], d["pct_budget"], d["on_budget"],
         d["otif_x_proyecto"], d["opex_aprob"], d["opex_ejec"], d["comentarios"]
     )
-    
     c.execute(query, valores)
     conn.commit()
     conn.close()
@@ -126,8 +121,17 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     with c8: com = st.text_input("Comentarios")
 
     st.markdown("### Finanzas")
+    # Checkbox para PPTO Año Anterior
+    es_ppto_anterior = st.checkbox("PPTO Año Anterior (Aplica Regla del Centavo)")
+    
     f1, f2, f3, f4 = st.columns(4)
-    with f1: t_ca = st.text_input("CAPEX Aprobado", value="0.00")
+    with f1: 
+        # Si el checkbox está marcado, fijamos el valor a 0.01 y deshabilitamos el campo
+        if es_ppto_anterior:
+            t_ca = st.text_input("CAPEX Aprobado", value="0.01", disabled=True)
+        else:
+            t_ca = st.text_input("CAPEX Aprobado", value="0.00")
+            
     with f2: t_ce = st.text_input("Ejecutado CAPEX", value="0.00")
     with f3: t_oa = st.text_input("OPEX Aprobado", value="0.00")
     with f4: t_oe = st.text_input("Ejecutado OPEX", value="0.00")
@@ -135,13 +139,15 @@ with st.expander("➕ Nuevo Registro de Proyecto", expanded=True):
     if st.button("💾 Guardar Proyecto"):
         ca, ce, oa, oe = clean_numeric(t_ca), clean_numeric(t_ce), clean_numeric(t_oa), clean_numeric(t_oe)
         t_aprob, t_ejec = ca + oa, ce + oe
+        
         on_b = "SÍ" if t_ejec <= t_aprob else "NO"
         pct_b = f"{(t_ejec / t_aprob * 100):.1f}%" if t_aprob > 0 else "0.0%"
         ot = "SÍ" if f_r <= f_p else "NO"
 
+        # Lógica OTIF con Regla del Centavo
         if in_f == "Sin avance":
             otif_final = "Sin avance"
-        elif ca == 0.01:
+        elif ca == 0.01: # Si es 0.01 (por el checkbox o manual), ignoramos presupuesto
             otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ") else "NO"
         else:
             otif_final = "SÍ" if (ot == "SÍ" and in_f == "SÍ" and on_b == "SÍ") else "NO"
@@ -187,7 +193,7 @@ if not df_datos.empty:
             "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
         },
         disabled=[col for col in df_con_check.columns if col != "Seleccionar"],
-        use_container_width=True, hide_index=True, key="main_editor_final_v1"
+        use_container_width=True, hide_index=True, key="main_editor_final_v2"
     )
 
     filas_marcadas = res_edicion[res_edicion["Seleccionar"] == True].index
@@ -202,3 +208,4 @@ if not df_datos.empty:
         st.download_button("📥 Exportar (CSV)", df_datos.to_csv(index=False).encode('utf-8'), "OTIF_Matrix.csv")
 else:
     st.info("No hay registros en la base de datos.")
+    
