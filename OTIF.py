@@ -1,11 +1,11 @@
 import streamlit as st
 import pandas as pd
-from datetime import datetime
+import re
 
 # 1. CONFIGURACIÓN DE PÁGINA
 st.set_page_config(page_title="OTIF IT - Seguimiento", layout="wide")
 
-# Mapeo de dependencias
+# Mapeo de dependencias (Tren -> Directores -> RTEs)
 CONFIG_TRENES = {
     "Comercial": {
         "directores": ["Ortiz de Montellanos Enrique"],
@@ -78,15 +78,25 @@ meses_espanol = {
     7: "Julio", 8: "Agosto", 9: "Septiembre", 10: "Octubre", 11: "Noviembre", 12: "Diciembre"
 }
 
+# Inicializar almacenamiento de datos
 if 'proyectos' not in st.session_state:
     st.session_state.proyectos = []
+
+# Función para limpiar texto y convertir a número (evita errores con comas o símbolos)
+def clean_numeric(value):
+    if not value: return 0.0
+    clean_val = re.sub(r'[^\d.]', '', value)
+    try:
+        return float(clean_val)
+    except:
+        return 0.0
 
 # 2. INTERFAZ DE USUARIO
 st.title("📊 Seguimiento OTIF IT")
 st.markdown("---")
 
 with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
-    # Fila 1: Identificación
+    # Fila 1: Identificación y Reglas de Negocio
     c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
     with c1:
         nombre_proyecto = st.text_input("Nombre del Proyecto (Tren E2E)")
@@ -97,7 +107,7 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
     with c4:
         rte_sel = st.selectbox("RTE Responsable", options=CONFIG_TRENES[tren_tipo]["rtes"])
 
-    # Fila 2: Fechas y Calidad
+    # Fila 2: Tiempos y Calidad
     c5, c6, c7, c8 = st.columns(4)
     with c5:
         f_plan = st.date_input("Fecha Planeada", format="DD/MM/YYYY")
@@ -108,19 +118,26 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
     with c8:
         comentarios = st.text_input("Comentarios")
 
-    # Fila 3: Finanzas (Moneda Nacional con separadores)
-    st.markdown("### Presupuesto (MXN)")
+    # Fila 3: Presupuesto (Entrada de texto limpia sin botones +/-)
+    st.markdown("### Presupuesto (Moneda Nacional)")
     f1, f2, f3, f4 = st.columns(4)
     with f1:
-        capex_aprob = st.number_input("CAPEX Aprobado Finanzas", min_value=0.0, step=1000.0, format="%.2f")
+        t_capex_aprob = st.text_input("CAPEX Aprobado Finanzas", value="0.00")
     with f2:
-        capex_ejec = st.number_input("Ejecutado CAPEX", min_value=0.0, step=1000.0, format="%.2f")
+        t_capex_ejec = st.text_input("Ejecutado CAPEX", value="0.00")
     with f3:
-        opex_aprob = st.number_input("OPEX Aprobado Finanzas", min_value=0.0, step=1000.0, format="%.2f")
+        t_opex_aprob = st.text_input("OPEX Aprobado Finanzas", value="0.00")
     with f4:
-        opex_ejec = st.number_input("Ejecutado OPEX", min_value=0.0, step=1000.0, format="%.2f")
+        t_opex_ejec = st.text_input("Ejecutado OPEX", value="0.00")
 
     if st.button("Registrar en Tablero"):
+        # Procesamiento de números
+        capex_aprob = clean_numeric(t_capex_aprob)
+        capex_ejec = clean_numeric(t_capex_ejec)
+        opex_aprob = clean_numeric(t_opex_aprob)
+        opex_ejec = clean_numeric(t_opex_ejec)
+
+        # Cálculos automáticos
         mes_txt = meses_espanol[f_real.month]
         on_time = "SÍ" if f_real <= f_plan else "NO"
         otif = "SÍ" if (on_time == "SÍ" and in_full == "SÍ") else "NO"
@@ -151,8 +168,8 @@ with st.expander("➕ Registrar Nuevo Proyecto", expanded=True):
         st.session_state.proyectos.append(nuevo_registro)
         st.rerun()
 
-# 3. TABLERO
-st.subheader("Tablero de Control (16 Columnas)")
+# 3. TABLERO DE SEGUIMIENTO (16 COLUMNAS)
+st.subheader("Tablero de Control")
 
 if st.session_state.proyectos:
     df_mostrar = pd.DataFrame(st.session_state.proyectos)
@@ -167,19 +184,19 @@ if st.session_state.proyectos:
             "% Budget": st.column_config.TextColumn(disabled=True),
             "Fecha Planeada": st.column_config.DateColumn(format="DD/MM/YYYY"),
             "Fecha Real": st.column_config.DateColumn(format="DD/MM/YYYY"),
-            # Formato con separador de miles (,) y decimal (.)
-            "CAPEX Aprobado por Finanzas": st.column_config.NumberColumn("CAPEX Aprobado", format="$ %,.2f"),
-            "Ejecutado CAPEX": st.column_config.NumberColumn("Ejecutado CAPEX", format="$ %,.2f"),
-            "OPEX Aprobado por Finanzas": st.column_config.NumberColumn("OPEX Aprobado", format="$ %,.2f"),
-            "Ejecutado OPEX": st.column_config.NumberColumn("Ejecutado OPEX", format="$ %,.2f"),
+            # Formato Moneda Nacional con separadores de miles y millones
+            "CAPEX Aprobado por Finanzas": st.column_config.NumberColumn(format="$ %,.2f"),
+            "Ejecutado CAPEX": st.column_config.NumberColumn(format="$ %,.2f"),
+            "OPEX Aprobado por Finanzas": st.column_config.NumberColumn(format="$ %,.2f"),
+            "Ejecutado OPEX": st.column_config.NumberColumn(format="$ %,.2f"),
         },
         use_container_width=True,
         hide_index=True,
-        key="main_table_v5"
+        key="main_table_v_final"
     )
     
-    if st.button("Limpiar Tablero"):
+    if st.button("Limpiar Todo el Tablero"):
         st.session_state.proyectos = []
         st.rerun()
 else:
-    st.info("No hay registros. Completa el formulario superior para empezar.")
+    st.info("No hay proyectos registrados. Inicia la captura en el formulario superior.")
